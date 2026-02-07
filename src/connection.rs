@@ -17,14 +17,15 @@ use tracing::{debug, error, info, warn};
 
 use crate::error::{Error, Result};
 use crate::peer_manager::{PeerHandle, PeerManager};
+use crate::discovery::NodeId;
 use crate::proto::{self, envelope::Payload, Envelope};
 use crate::protocol;
 
 // ── tunables ────────────────────────────────────────────────────────────
 
 const CHANNEL_BUF: usize = 256;
-const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
-const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(15);
+// const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
+// const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(15);
 const RECONNECT_BASE: Duration = Duration::from_secs(1);
 const RECONNECT_MAX: Duration = Duration::from_secs(30);
 
@@ -35,9 +36,10 @@ const RECONNECT_MAX: Duration = Duration::from_secs(30);
 /// Returns a `JoinHandle` and a `CancellationToken`-style `mpsc::Sender`
 /// whose drop will cause the task tree to shut down.
 pub fn spawn_outbound(
+    node_id: NodeId,
     addr: SocketAddr,
-    local_node_id: String,
-    local_node_name: String,
+    local_node_id: NodeId,
+    local_node_name: NodeId,
     manager: PeerManager,
     app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
 ) -> tokio::task::JoinHandle<()> {
@@ -62,7 +64,7 @@ pub fn spawn_outbound(
                     {
                         warn!(%addr, %e, "connection terminated");
                     }
-                    manager.remove(&addr);
+                    manager.remove(&node_id);
                 }
                 Err(e) => {
                     warn!(%addr, %e, "connection failed");
@@ -84,7 +86,7 @@ pub async fn handle_inbound(
     manager: &PeerManager,
     app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
 ) {
-    if let Err(e) = run_connection(
+    match run_connection(
         stream,
         remote_addr,
         local_node_id,
@@ -95,9 +97,14 @@ pub async fn handle_inbound(
     )
     .await
     {
-        warn!(%remote_addr, %e, "inbound connection ended");
+        Ok(node_id) => {
+            warn!(%node_id, "inbound connection ended");
+            manager.remove(&node_id);
+        }
+        Err(e) => {
+            warn!(%e, "connection failed");
+        }
     }
-    manager.remove(&remote_addr);
 }
 
 // ── internal ────────────────────────────────────────────────────────────
@@ -110,7 +117,7 @@ async fn run_connection(
     manager: &PeerManager,
     app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
     initiator: bool,
-) -> Result<()> {
+) -> Result<NodeId> {
     stream.set_nodelay(true)?;
     let (mut reader, mut writer) = tokio::io::split(stream);
 
@@ -124,14 +131,15 @@ async fn run_connection(
         initiator,
     )
     .await?;
-    info!(%addr, %remote_node_id, "handshake complete");
+    info!(%addr, remote_node_id, "handshake complete");
 
     // ── register in peer manager ────────────────────────────────────
     let (tx, rx) = mpsc::channel::<Envelope>(CHANNEL_BUF);
     manager.insert(
+        remote_node_id.clone(),
         addr,
         PeerHandle {
-            node_id: Some(remote_node_id),
+            node_id: Some(remote_node_id.clone()),
             addr,
             tx: tx.clone(),
         },
@@ -151,7 +159,10 @@ async fn run_connection(
     // hb_handle.abort();
     writer_handle.abort();
 
-    reader_result
+    match reader_result {
+        Ok(()) => Ok(remote_node_id),
+        Err(e) => Err(e),
+    }
 }
 
 // ── handshake ───────────────────────────────────────────────────────────
@@ -217,28 +228,28 @@ async fn reader_loop(
     app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
     peer_tx: &mpsc::Sender<Envelope>,
 ) -> Result<()> {
-    let mut last_seen = tokio::time::Instant::now();
+    // let mut last_seen = tokio::time::Instant::now();
     loop {
         let read_fut = protocol::read_envelope(reader);
-        let timeout_fut = time::sleep(HEARTBEAT_TIMEOUT);
+        // let timeout_fut = time::sleep(HEARTBEAT_TIMEOUT);
 
         tokio::select! {
             result = read_fut => {
                 match result? {
                     Some(env) => {
-                        last_seen = tokio::time::Instant::now();
+                        // last_seen = tokio::time::Instant::now();
                         dispatch(env, addr, app_tx, peer_tx).await?;
                     }
                     None => return Err(Error::ConnectionClosed(addr)),
                 }
             }
-            _ = timeout_fut => {
+            /* _ = timeout_fut => {
                 // Check if we've actually timed out (select may have
                 // spuriously fired).
                 if last_seen.elapsed() >= HEARTBEAT_TIMEOUT {
                     return Err(Error::HeartbeatTimeout(addr));
                 }
-            }
+            } */
         }
     }
 }
@@ -289,7 +300,7 @@ async fn writer_loop(
 
 // ── heartbeat emitter ───────────────────────────────────────────────────
 
-async fn heartbeat_emitter(tx: mpsc::Sender<Envelope>, addr: SocketAddr) {
+/* async fn heartbeat_emitter(tx: mpsc::Sender<Envelope>, addr: SocketAddr) {
     let mut seq: u64 = 0;
     let mut interval = time::interval(HEARTBEAT_INTERVAL);
     loop {
@@ -303,4 +314,4 @@ async fn heartbeat_emitter(tx: mpsc::Sender<Envelope>, addr: SocketAddr) {
             return;
         }
     }
-}
+} */

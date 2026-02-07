@@ -1,6 +1,5 @@
 use std::net::SocketAddr;
 
-/// Crate-wide error type.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("I/O error: {0}")]
@@ -23,6 +22,9 @@ pub enum Error {
 
     #[error("Heartbeat timeout for peer {0}")]
     HeartbeatTimeout(SocketAddr),
+
+    #[error("Discovery error: {0}")]
+    Discovery(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

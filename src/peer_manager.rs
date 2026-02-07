@@ -10,13 +10,13 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
-use crate::proto::Envelope;
+use crate::{discovery::NodeId, proto::Envelope};
 
 /// Handle held per connected peer — allows sending messages into
 /// that peer's write loop.
 #[derive(Debug, Clone)]
 pub struct PeerHandle {
-    pub node_id: Option<String>,
+    pub node_id: Option<NodeId>,
     pub addr: SocketAddr,
     /// Send side of the channel that feeds the peer's writer task.
     pub tx: mpsc::Sender<Envelope>,
@@ -25,7 +25,7 @@ pub struct PeerHandle {
 /// Concurrent, clonable registry of all active peers.
 #[derive(Debug, Clone)]
 pub struct PeerManager {
-    peers: Arc<DashMap<SocketAddr, PeerHandle>>,
+    peers: Arc<DashMap<NodeId, (SocketAddr, PeerHandle)>>,
 }
 
 impl PeerManager {
@@ -36,38 +36,38 @@ impl PeerManager {
     }
 
     /// Register (or replace) a peer handle.
-    pub fn insert(&self, addr: SocketAddr, handle: PeerHandle) {
+    pub fn insert(&self, node_id: NodeId, addr: SocketAddr, handle: PeerHandle) {
         info!(%addr, "peer registered");
-        self.peers.insert(addr, handle);
+        self.peers.insert(node_id, (addr, handle));
     }
 
     /// Remove a peer from the registry. Returns the old handle if present.
-    pub fn remove(&self, addr: &SocketAddr) -> Option<PeerHandle> {
-        let removed = self.peers.remove(addr).map(|(_, h)| h);
+    pub fn remove(&self, node_id: &NodeId) -> Option<PeerHandle> {
+        let removed = self.peers.remove(node_id).map(|(_, (_, h))| h);
         if removed.is_some() {
-            info!(%addr, "peer removed");
+            info!(%node_id, "peer removed");
         } else {
-            warn!(%addr, "tried to remove unknown peer");
+            warn!(%node_id, "tried to remove unknown peer");
         }
         removed
     }
 
     /// Retrieve a cloned handle for a specific peer.
-    pub fn get(&self, addr: &SocketAddr) -> Option<PeerHandle> {
-        self.peers.get(addr).map(|r| r.value().clone())
+    pub fn get(&self, node_id: &NodeId) -> Option<(SocketAddr, PeerHandle)> {
+        self.peers.get(node_id).map(|r| r.value().clone())
     }
 
-    /// Snapshot of all current peer addresses.
-    pub fn peer_addrs(&self) -> Vec<SocketAddr> {
-        self.peers.iter().map(|r| *r.key()).collect()
+    /// Snapshot of all current peer node_ids.
+    pub fn peer_ids(&self) -> Vec<NodeId> {
+        self.peers.iter().map(|r| r.key().clone()).collect()
     }
 
     /// Broadcast an envelope to **all** connected peers.
     /// Skips peers whose channel is full / closed and logs a warning.
     pub async fn broadcast(&self, envelope: Envelope) {
         for entry in self.peers.iter() {
-            let addr = *entry.key();
-            if let Err(e) = entry.value().tx.try_send(envelope.clone()) {
+            let addr = entry.value().0;
+            if let Err(e) = entry.value().1.tx.try_send(envelope.clone()) {
                 warn!(%addr, %e, "failed to enqueue message for peer");
             }
         }
