@@ -1,0 +1,26 @@
+[package]
+name    = "crdt-replication"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "crdt-server"
+path = "src/main.rs"
+
+[dependencies]
+tokio       = { version = "1", features = ["full"] }
+prost       = "0.13"
+prost-types = "0.13"
+bytes       = "1"
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid        = { version = "1", features = ["v4"] }
+clap        = { version = "4", features = ["derive"] }
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+thiserror   = "2"
+dashmap     = "6"
+anyhow = "1.0.101"
+
+[build-dependencies]
+prost-build = "0.13"

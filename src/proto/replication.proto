@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package replication;
+
+// ----- Top-level envelope ----------------------------------------------
+
+message Envelope {
+  oneof payload {
+    Handshake    handshake     = 1;
+    Heartbeat    heartbeat     = 2;
+    HeartbeatAck heartbeat_ack = 3;
+    CrdtOp       crdt_op       = 4;
+  }
+}
+
+// ----- Handshake -------------------------------------------------------
+
+message Handshake {
+  // Globally unique node identifier (UUID recommended).
+  string node_id   = 1;
+  // Human-readable name (optional).
+  string node_name = 2;
+  // Protocol version for forward-compat checks.
+  uint32 version   = 3;
+}
+
+// ----- Heartbeat / Keep-alive ------------------------------------------
+
+message Heartbeat {
+  // Monotonic sequence number so the responder can detect gaps.
+  uint64 seq = 1;
+}
+
+message HeartbeatAck {
+  // Echoes the seq from the Heartbeat it is acknowledging.
+  uint64 seq = 1;
+}
+
+// ----- CRDT operations (extend later) ----------------------------------
+
+message CrdtOp {
+  // Which CRDT instance this operation targets.
+  string crdt_id = 1;
+  // Opaque, serialised operation payload.  The CRDT layer will
+  // deserialise this according to the crdt_id's registered type.
+  bytes  payload = 2;
+  // Hybrid-logical or Lamport timestamp for crdt ordering.
+  uint64 hlc_ts  = 3;
+  // Originating node so we can break ties / attribute ops.
+  string origin_node_id = 4;
+}
