@@ -260,8 +260,8 @@ impl Discovery {
                 .iter()
                 .map(|r| (r.node_id.clone(), r.clone()))
                 .collect(); 
-            let current: HashSet<NodeId> =
-            manager.peer_ids().into_iter().collect();
+            let current: HashSet<NodeId> = manager
+                .peer_ids().into_iter().collect();
 
             let desired_ids: HashSet<NodeId> = desired.keys().cloned().collect();
 

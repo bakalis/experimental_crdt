@@ -64,7 +64,6 @@ pub fn spawn_outbound(
                     {
                         warn!(%addr, %e, "connection terminated");
                     }
-                    manager.remove(&node_id);
                 }
                 Err(e) => {
                     warn!(%addr, %e, "connection failed");
@@ -99,7 +98,6 @@ pub async fn handle_inbound(
     {
         Ok(node_id) => {
             warn!(%node_id, "inbound connection ended");
-            manager.remove(&node_id);
         }
         Err(e) => {
             warn!(%e, "connection failed");
