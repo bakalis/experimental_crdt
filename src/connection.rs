@@ -17,7 +17,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::error::{Error, Result};
 use crate::peer_manager::{PeerHandle, PeerManager};
-use crate::discovery::NodeId;
+use crate::common::NodeId;
 use crate::proto::{self, envelope::Payload, Envelope};
 use crate::protocol;
 

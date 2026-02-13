@@ -4,8 +4,9 @@ mod error;
 mod peer_manager;
 mod protocol;
 mod server;
-
+mod common;
 mod proto;
+mod logical_clocks;
 
 use clap::Parser;
 use std::net::SocketAddr;

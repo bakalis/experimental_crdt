@@ -13,10 +13,10 @@ use tracing::{debug, error, info, warn};
 
 use crate::peer_manager::PeerManager;
 use crate::server::PeerConnector;
+use crate::common::NodeId;
 
 // ── Configuration ───────────────────────────────────────────────────────
 
-pub type NodeId = String;
 
 #[derive(Debug, Clone, Default)]
 pub struct DiscoveryConfig {

@@ -9,7 +9,8 @@ use tokio::task::JoinHandle;
 use tracing::{error, info};
 
 use crate::connection;
-use crate::discovery::{NodeId, Discovery, DiscoveryConfig};
+use crate::discovery::{Discovery, DiscoveryConfig};
+use crate::common::NodeId;
 use crate::peer_manager::PeerManager;
 use crate::proto::Envelope;
 

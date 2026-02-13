@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
-use crate::{discovery::NodeId, proto::Envelope};
+use crate::{common::NodeId, proto::Envelope};
 
 /// Handle held per connected peer — allows sending messages into
 /// that peer's write loop.
