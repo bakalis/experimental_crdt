@@ -34,7 +34,6 @@ impl PeerConnector {
             return;
         }
         let handle = connection::spawn_outbound(
-            node_id.clone(),
             addr,
             self.node_id.clone(),
             self.node_name.clone(),
@@ -124,7 +123,6 @@ impl Server {
             node_id = %self.node_id,
             "listening"
         );
-        let mut message_interval = tokio::time::interval(std::time::Duration::from_secs(20));
 
         // ── Main event loop_ ─────────────────────────────────────────
         loop {

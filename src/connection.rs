@@ -35,9 +35,7 @@ const RECONNECT_MAX: Duration = Duration::from_secs(30);
 ///
 /// Returns a `JoinHandle` and a `CancellationToken`-style `mpsc::Sender`
 /// whose drop will cause the task tree to shut down.
-pub fn spawn_outbound(
-    node_id: NodeId,
-    addr: SocketAddr,
+pub fn spawn_outbound(addr: SocketAddr,
     local_node_id: NodeId,
     local_node_name: NodeId,
     manager: PeerManager,
