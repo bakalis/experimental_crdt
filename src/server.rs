@@ -1,4 +1,4 @@
-//! Top-level server with S3-backed peer discovery.
+//! Top-level server with S3-backed peer discovery and delta-CRDT engine.
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -6,25 +6,29 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::{mpsc, Mutex};
 use tokio::task::JoinHandle;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::connection;
+use crate::crdt::or_set::OrSet;
+use crate::crdt_engine::{CrdtEngine, EngineHandle};
 use crate::discovery::{Discovery, DiscoveryConfig};
+use crate::dissemination::{PushBroadcast, SharedDissemination};
 use crate::common::NodeId;
 use crate::peer_manager::PeerManager;
+use crate::proto::envelope::Payload;
 use crate::proto::Envelope;
 
 // ── PeerConnector ───────────────────────────────────────────────────────
 
-/// Thin, clonable handle the discovery loop uses to add/remove outbound
-/// connections without holding a reference to the full `Server`.
+type OutboundTasks = HashMap<NodeId, (SocketAddr, JoinHandle<()>)>;
+
 #[derive(Clone)]
 pub struct PeerConnector {
     node_id: String,
     node_name: String,
     manager: PeerManager,
     app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
-    outbound_tasks: Arc<Mutex<HashMap<NodeId, (SocketAddr, JoinHandle<()>)>>>,
+    outbound_tasks: Arc<Mutex<OutboundTasks>>,
 }
 
 impl PeerConnector {
@@ -61,7 +65,7 @@ pub struct Server {
     listen_addr: SocketAddr,
     advertise_addr: SocketAddr,
     manager: PeerManager,
-    outbound_tasks: Arc<Mutex<HashMap<NodeId, (SocketAddr, JoinHandle<()>)>>>,
+    outbound_tasks: Arc<Mutex<OutboundTasks>>,
 }
 
 impl Server {
@@ -72,12 +76,30 @@ impl Server {
             listen_addr,
             advertise_addr,
             manager: PeerManager::new(),
-            outbound_tasks: Arc::new(Mutex::new(HashMap::new())),
+            outbound_tasks: Arc::new(Mutex::new(OutboundTasks::new())),
         }
     }
 
     pub async fn run(&self, discovery_cfg: DiscoveryConfig) -> anyhow::Result<()> {
         let (app_tx, mut app_rx) = mpsc::channel::<(SocketAddr, Envelope)>(1024);
+
+        // ── Build dissemination strategy ─────────────────────────────
+        // Default: PushBroadcast.  Swap to PullPeriodic or PushPull here.
+        let dissemination: SharedDissemination =
+            Arc::new(PushBroadcast::new(self.manager.clone()));
+
+        // ── Build CRDT engine (OR-Set<String> as default) ───────────
+        let (engine_handle, engine_rx, engine) = CrdtEngine::new(
+            self.node_id.clone(),
+            "default-orset".to_string(),
+            Box::new(OrSet::<String>::new()),
+            dissemination.clone(),
+            self.manager.clone(),
+            None, // pull_interval: None for push-only, Some(Duration) for pull
+        );
+
+        // Spawn engine task.
+        let engine_task = tokio::spawn(engine.run(engine_rx));
 
         // ── Build discovery service ─────────────────────────────────
         let discovery = Discovery::new(
@@ -88,7 +110,6 @@ impl Server {
         )
         .await?;
 
-        // Initial registration — fail fast if S3 is unreachable.
         discovery.register().await?;
 
         let connector = PeerConnector {
@@ -99,7 +120,6 @@ impl Server {
             outbound_tasks: Arc::clone(&self.outbound_tasks),
         };
 
-        // Keep a clone of discovery for deregistration on shutdown.
         let shutdown_discovery = Discovery::new(
             discovery_cfg,
             self.node_id.clone(),
@@ -112,7 +132,9 @@ impl Server {
         let disc_manager = self.manager.clone();
         let disc_connector = connector.clone();
         let discovery_handle = tokio::spawn(async move {
-            discovery.run_discovery_loop(disc_manager, disc_connector).await;
+            discovery
+                .run_discovery_loop(disc_manager, disc_connector)
+                .await;
         });
 
         // ── Bind TCP listener ───────────────────────────────────────
@@ -124,7 +146,7 @@ impl Server {
             "listening"
         );
 
-        // ── Main event loop_ ─────────────────────────────────────────
+        // ── Main event loop ────���────────────────────────────────────
         loop {
             tokio::select! {
                 accept_result = listener.accept() => {
@@ -147,19 +169,36 @@ impl Server {
                 }
 
                 Some((addr, envelope)) = app_rx.recv() => {
-                    // Future: route to CRDT engine.
-                    info!(%addr, ?envelope, "app received message");
+                    // Route CRDT operations to the engine.
+                    match envelope.payload {
+                        Some(Payload::CrdtOp(crdt_op)) => {
+                            if let Err(e) = engine_handle
+                                .apply_remote(
+                                    crdt_op.origin_node_id,
+                                    crdt_op.crdt_id,
+                                    crdt_op.payload,
+                                    crdt_op.hlc_ts,
+                                )
+                                .await
+                            {
+                                warn!(%addr, %e, "failed to forward to engine");
+                            }
+                        }
+                        other => {
+                            info!(%addr, ?other, "app received non-CRDT message");
+                        }
+                    }
                 }
-                
+
                 _ = tokio::signal::ctrl_c() => {
                     info!("shutdown signal received — deregistering from S3");
                     discovery_handle.abort();
+                    engine_task.abort();
 
                     if let Err(e) = shutdown_discovery.deregister().await {
                         error!(%e, "failed to deregister from S3");
                     }
 
-                    // Abort all outbound connection tasks.
                     let mut tasks = self.outbound_tasks.lock().await;
                     for (_, (addr, handle)) in tasks.drain() {
                         handle.abort();

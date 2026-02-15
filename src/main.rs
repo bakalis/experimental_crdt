@@ -1,5 +1,8 @@
 mod connection;
+mod crdt;                // ← NEW
+mod crdt_engine;         // ← NEW
 mod discovery;
+mod dissemination;       // ← NEW
 mod error;
 mod peer_manager;
 mod protocol;
@@ -21,8 +24,6 @@ struct Cli {
     listen: SocketAddr,
 
     /// The address that *other* nodes should use to reach us.
-    /// Defaults to the listen address, but in Docker / K8s you
-    /// typically need to advertise a different IP.
     #[arg(long)]
     advertise: Option<SocketAddr>,
 
