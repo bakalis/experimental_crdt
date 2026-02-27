@@ -45,7 +45,7 @@ impl Dot {
 /// `dot.counter`, OR `dot.counter == 0` (no events yet).
 ///
 /// This means the dot is always *outside* the context.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DotVersionVector {
     pub dot: Dot,
     pub context: CausalContext,
