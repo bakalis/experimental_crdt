@@ -1,8 +1,7 @@
-//! Observed-Remove Set (OR-Set) using the existing DotVersionVector.
+//! Observed-Remove Set (OR-Set).
 //!
-//! Each element is tagged with a `Dot` from the DVV.  The DVV mints
-//! dots on add and `dominates_dot()` tells us whether a dot has been
-//! causally superseded.
+//! Each element is tagged with a `Dot` supplied by the engine.
+//! This implementation never touches a `DotVersionVector`.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -11,10 +10,10 @@ use std::hash::Hash;
 use serde::{Deserialize, Serialize};
 
 use crate::common::{Counter, NodeId};
-use crate::crdt::DeltaCrdt;
-use crate::logical_clocks::dot_version_vector::{CausalContext, Dot, DotVersionVector};
+use crate::crdt::{DeltaCrdt, DeltaContext};
+use crate::logical_clocks::dot_version_vector::Dot;
 
-// ── Wire types (serialised into CrdtOp.payload) ────────────────────────
+// ── Op ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OrSetOp<E> {
@@ -22,27 +21,48 @@ pub enum OrSetOp<E> {
     Remove(E),
 }
 
-/// Delta produced by a single operation — this is what travels on the wire.
+// ── Delta ───────────────────────────────────────────────────────────────
+
+/// Delta produced by one operation — also used as the full-state snapshot
+/// type (adds = all entries, removes = empty).
+///
+/// The `dvv_*` fields are left as defaults by the CRDT; the engine fills
+/// them in via `DeltaContext::set_causal_context` before sending.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrSetDelta<E> {
     pub adds: Vec<(E, Dot)>,
     pub removes: Vec<Dot>,
-    /// Sender's DVV state so the receiver can merge causal knowledge.
-    pub dvv_context: CausalContext,
+    /// Sender's DVV effective map — filled in by the engine, not the CRDT.
+    pub dvv_context: HashMap<NodeId, Counter>,
     pub dvv_dot_node: NodeId,
     pub dvv_dot_counter: Counter,
 }
 
-/// Full-state snapshot for initial sync / pull responses.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OrSetState<E> {
-    pub entries: Vec<(E, Dot)>,
-    pub dvv_context: CausalContext,
-    pub dvv_dot_node: NodeId,
-    pub dvv_dot_counter: Counter,
+impl<E> DeltaContext for OrSetDelta<E>
+where
+    E: Clone + Send + Sync + 'static + Serialize + for<'de> Deserialize<'de>,
+{
+    fn causal_context(&self) -> (HashMap<NodeId, Counter>, NodeId, Counter) {
+        (
+            self.dvv_context.clone(),
+            self.dvv_dot_node.clone(),
+            self.dvv_dot_counter,
+        )
+    }
+
+    fn set_causal_context(
+        &mut self,
+        context: HashMap<NodeId, Counter>,
+        node: NodeId,
+        counter: Counter,
+    ) {
+        self.dvv_context = context;
+        self.dvv_dot_node = node;
+        self.dvv_dot_counter = counter;
+    }
 }
 
-// ── The OR-Set ─────────────────────────────────────────────────────────
+// ── OrSet ───────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct OrSet<E: Clone + Eq + Hash + Debug> {
@@ -92,22 +112,12 @@ impl<E> DeltaCrdt for OrSet<E>
 where
     E: Clone + Eq + Hash + Debug + Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static,
 {
-    fn apply_local(
-        &mut self,
-        dvv: &mut DotVersionVector,
-        node_id: &NodeId,
-        op_bytes: &[u8],
-    ) -> Vec<u8> {
-        // TODO: Refactor json to protobuf
-        let op: OrSetOp<E> = serde_json::from_slice(op_bytes)
-            .expect("apply_local: caller must provide valid OrSetOp bytes");
+    type Op = OrSetOp<E>;
+    type Delta = OrSetDelta<E>;
 
+    fn apply_local(&mut self, dot: Dot, op: OrSetOp<E>) -> OrSetDelta<E> {
         match op {
             OrSetOp::Add(elem) => {
-                // Mint a new dot via the DVV.
-                dvv.event();
-                let dot = Dot::new(node_id.clone(), dvv.dot.counter);
-
                 // Remove all existing dots for this element (add-wins / re-add).
                 let old_dots: Vec<Dot> = self
                     .entries
@@ -120,15 +130,16 @@ where
                 new_dots.insert(dot.clone());
                 self.entries.insert(elem.clone(), new_dots);
 
-                let delta = OrSetDelta::<E> {
+                tracing::info!("elements: {:?}", self.elements().collect::<Vec<_>>());
+
+                OrSetDelta {
                     adds: vec![(elem, dot)],
                     removes: old_dots,
-                    dvv_context: dvv.context.clone(),
-                    dvv_dot_node: dvv.dot.node_id.clone(),
-                    dvv_dot_counter: dvv.dot.counter,
-                };
-                tracing::info!("elements: {:?}", self.elements().collect::<Vec<_>>());
-                serde_json::to_vec(&delta).expect("delta serialisation")
+                    // Engine fills these in before sending.
+                    dvv_context: HashMap::new(),
+                    dvv_dot_node: String::new(),
+                    dvv_dot_counter: 0,
+                }
             }
 
             OrSetOp::Remove(elem) => {
@@ -139,32 +150,19 @@ where
                     .into_iter()
                     .collect();
 
-                // Remove doesn't create a new event in the DVV.
-                let delta = OrSetDelta::<E> {
+                OrSetDelta {
                     adds: vec![],
                     removes: removed_dots,
-                    dvv_context: dvv.context.clone(),
-                    dvv_dot_node: dvv.dot.node_id.clone(),
-                    dvv_dot_counter: dvv.dot.counter,
-                };
-                serde_json::to_vec(&delta).expect("delta serialisation")
+                    // Engine fills these in before sending.
+                    dvv_context: HashMap::new(),
+                    dvv_dot_node: String::new(),
+                    dvv_dot_counter: 0,
+                }
             }
         }
     }
 
-    fn apply_remote(
-        &mut self,
-        dvv: &mut DotVersionVector,
-        payload: &[u8],
-    ) {
-        let delta: OrSetDelta<E> = match serde_json::from_slice(payload) {
-            Ok(d) => d,
-            Err(e) => {
-                tracing::warn!(%e, "failed to decode OrSetDelta");
-                return;
-            }
-        };
-
+    fn merge_delta(&mut self, delta: &OrSetDelta<E>) {
         // 1. Remove tombstoned dots.
         for dot in &delta.removes {
             for dots in self.entries.values_mut() {
@@ -173,24 +171,17 @@ where
         }
         self.entries.retain(|_, dots| !dots.is_empty());
 
-        // 2. Apply adds — only if we haven't already seen this dot.
+        // 2. Apply adds (idempotent via HashSet).
         for (elem, dot) in &delta.adds {
-            if !dvv.dominates_dot(dot) {
-                let entry = self.entries.entry(elem.clone()).or_default();
-                entry.insert(dot.clone());
-            }
+            self.entries
+                .entry(elem.clone())
+                .or_default()
+                .insert(dot.clone());
         }
-
-        // 3. Merge the sender's DVV context into ours.
-        let remote_dvv = DotVersionVector {
-            dot: Dot::new(delta.dvv_dot_node, delta.dvv_dot_counter),
-            context: delta.dvv_context,
-        };
-        dvv.merge(&remote_dvv);
     }
 
-    fn encode_state(&self, dvv: &DotVersionVector) -> Vec<u8> {
-        let entries: Vec<(E, Dot)> = self
+    fn full_state(&self) -> OrSetDelta<E> {
+        let adds: Vec<(E, Dot)> = self
             .entries
             .iter()
             .flat_map(|(elem, dots)| {
@@ -198,72 +189,102 @@ where
             })
             .collect();
 
-        let state = OrSetState {
-            entries,
-            dvv_context: dvv.context.clone(),
-            dvv_dot_node: dvv.dot.node_id.clone(),
-            dvv_dot_counter: dvv.dot.counter,
-        };
-        serde_json::to_vec(&state).expect("state serialisation")
+        OrSetDelta {
+            adds,
+            removes: vec![],
+            // Engine fills these in before sending.
+            dvv_context: HashMap::new(),
+            dvv_dot_node: String::new(),
+            dvv_dot_counter: 0,
+        }
     }
 
-    fn merge_state(
-        &mut self,
-        dvv: &mut DotVersionVector,
-        payload: &[u8],
-    ) {
-        let state: OrSetState<E> = match serde_json::from_slice(payload) {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::warn!(%e, "failed to decode OrSetState");
-                return;
-            }
-        };
+    fn encode_delta(delta: &OrSetDelta<E>) -> Vec<u8> {
+        serde_json::to_vec(delta).expect("delta serialisation")
+    }
 
-        for (elem, dot) in &state.entries {
-            let entry = self.entries.entry(elem.clone()).or_default();
-            entry.insert(dot.clone());
-        }
+    fn decode_delta(
+        bytes: &[u8],
+    ) -> Result<OrSetDelta<E>, Box<dyn std::error::Error + Send + Sync>> {
+        serde_json::from_slice(bytes).map_err(|e| Box::new(e) as _)
+    }
 
-        let remote_dvv = DotVersionVector {
-            dot: Dot::new(state.dvv_dot_node, state.dvv_dot_counter),
-            context: state.dvv_context,
-        };
-        dvv.merge(&remote_dvv);
+    fn encode_op(op: &OrSetOp<E>) -> Vec<u8> {
+        serde_json::to_vec(op).expect("op serialisation")
+    }
+
+    fn decode_op(
+        bytes: &[u8],
+    ) -> Result<OrSetOp<E>, Box<dyn std::error::Error + Send + Sync>> {
+        serde_json::from_slice(bytes).map_err(|e| Box::new(e) as _)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::logical_clocks::dot_version_vector::DotVersionVector;
 
-    fn nid(s: &str) -> NodeId { s.to_string() }
+    fn nid(s: &str) -> NodeId {
+        s.to_string()
+    }
 
-    fn op_bytes<E: Serialize>(op: &OrSetOp<E>) -> Vec<u8> {
-        serde_json::to_vec(op).unwrap()
+    /// Simulate what the engine does for a local operation:
+    /// mint a dot, apply to CRDT, then annotate with DVV context.
+    fn engine_apply_local(
+        set: &mut OrSet<String>,
+        dvv: &mut DotVersionVector,
+        op: OrSetOp<String>,
+    ) -> OrSetDelta<String> {
+        dvv.event();
+        let dot = Dot::new(dvv.dot.node_id.clone(), dvv.dot.counter);
+        let mut delta = set.apply_local(dot, op);
+        delta.set_causal_context(
+            dvv.effective_map(),
+            dvv.dot.node_id.clone(),
+            dvv.dot.counter,
+        );
+        delta
+    }
+
+    /// Simulate what the engine does when merging a remote delta:
+    /// merge into CRDT then merge the DVV context.
+    fn engine_merge_delta(
+        set: &mut OrSet<String>,
+        dvv: &mut DotVersionVector,
+        delta: &OrSetDelta<String>,
+    ) {
+        set.merge_delta(delta);
+        let (ctx, node, counter) = delta.causal_context();
+        let remote_dvv = DotVersionVector {
+            dot: Dot::new(node, counter),
+            context: ctx,
+        };
+        dvv.merge(&remote_dvv);
     }
 
     #[test]
-    fn add_uses_dvv_dot() {
+    fn add_uses_dot() {
         let mut set = OrSet::<String>::new();
         let mut dvv = DotVersionVector::new(nid("A"));
 
-        let _ = set.apply_local(&mut dvv, &nid("A"), &op_bytes(&OrSetOp::Add("x".to_string())));
+        let _ = engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("x".to_string()));
 
         assert!(set.contains(&"x".to_string()));
         assert_eq!(dvv.dot.counter, 1);
     }
 
     #[test]
-    fn remove_does_not_advance_dvv() {
+    fn remove_clears_element() {
         let mut set = OrSet::<String>::new();
         let mut dvv = DotVersionVector::new(nid("A"));
 
-        let _ = set.apply_local(&mut dvv, &nid("A"), &op_bytes(&OrSetOp::Add("x".to_string())));
+        let _ = engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("x".to_string()));
         assert_eq!(dvv.dot.counter, 1);
 
-        let _ = set.apply_local(&mut dvv, &nid("A"), &op_bytes(&OrSetOp::Remove("x".to_string())));
-        assert_eq!(dvv.dot.counter, 1);
+        // Engine mints a dot for every op, including Remove.
+        let _ = engine_apply_local(&mut set, &mut dvv, OrSetOp::Remove("x".to_string()));
+        assert_eq!(dvv.dot.counter, 2);
         assert!(!set.contains(&"x".to_string()));
     }
 
@@ -274,17 +295,20 @@ mod tests {
         let mut b_set = OrSet::<String>::new();
         let mut b_dvv = DotVersionVector::new(nid("B"));
 
-        let delta_a = a_set.apply_local(&mut a_dvv, &nid("A"), &op_bytes(&OrSetOp::Add("x".to_string())));
-        b_set.apply_remote(&mut b_dvv, &delta_a);
+        let delta_a =
+            engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("x".to_string()));
+        engine_merge_delta(&mut b_set, &mut b_dvv, &delta_a);
         assert!(b_set.contains(&"x".to_string()));
 
-        let remove_delta = b_set.apply_local(&mut b_dvv, &nid("B"), &op_bytes(&OrSetOp::Remove("x".to_string())));
-        let readd_delta = a_set.apply_local(&mut a_dvv, &nid("A"), &op_bytes(&OrSetOp::Add("x".to_string())));
+        let remove_delta =
+            engine_apply_local(&mut b_set, &mut b_dvv, OrSetOp::Remove("x".to_string()));
+        let readd_delta =
+            engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("x".to_string()));
 
-        a_set.apply_remote(&mut a_dvv, &remove_delta);
+        engine_merge_delta(&mut a_set, &mut a_dvv, &remove_delta);
         assert!(a_set.contains(&"x".to_string()));
 
-        b_set.apply_remote(&mut b_dvv, &readd_delta);
+        engine_merge_delta(&mut b_set, &mut b_dvv, &readd_delta);
         assert!(b_set.contains(&"x".to_string()));
     }
 
@@ -293,11 +317,14 @@ mod tests {
         let mut set = OrSet::<String>::new();
         let mut dvv = DotVersionVector::new(nid("A"));
 
-        let delta_bytes = set.apply_local(&mut dvv, &nid("A"), &op_bytes(&OrSetOp::Add("hello".to_string())));
+        let delta = engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("hello".to_string()));
+        let delta_bytes = OrSet::<String>::encode_delta(&delta);
+
+        let decoded = OrSet::<String>::decode_delta(&delta_bytes).unwrap();
 
         let mut remote_set = OrSet::<String>::new();
         let mut remote_dvv = DotVersionVector::new(nid("B"));
-        remote_set.apply_remote(&mut remote_dvv, &delta_bytes);
+        engine_merge_delta(&mut remote_set, &mut remote_dvv, &decoded);
 
         assert!(remote_set.contains(&"hello".to_string()));
         assert_eq!(remote_dvv.effective_counter(&nid("A")), 1);
@@ -308,14 +335,21 @@ mod tests {
         let mut a_set = OrSet::<String>::new();
         let mut a_dvv = DotVersionVector::new(nid("A"));
 
-        a_set.apply_local(&mut a_dvv, &nid("A"), &op_bytes(&OrSetOp::Add("x".to_string())));
-        a_set.apply_local(&mut a_dvv, &nid("A"), &op_bytes(&OrSetOp::Add("y".to_string())));
+        engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("x".to_string()));
+        engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("y".to_string()));
 
-        let state_bytes = a_set.encode_state(&a_dvv);
+        let mut state = a_set.full_state();
+        state.set_causal_context(
+            a_dvv.effective_map(),
+            a_dvv.dot.node_id.clone(),
+            a_dvv.dot.counter,
+        );
+        let state_bytes = OrSet::<String>::encode_delta(&state);
+        let decoded = OrSet::<String>::decode_delta(&state_bytes).unwrap();
 
         let mut b_set = OrSet::<String>::new();
         let mut b_dvv = DotVersionVector::new(nid("B"));
-        b_set.merge_state(&mut b_dvv, &state_bytes);
+        engine_merge_delta(&mut b_set, &mut b_dvv, &decoded);
 
         assert!(b_set.contains(&"x".to_string()));
         assert!(b_set.contains(&"y".to_string()));
