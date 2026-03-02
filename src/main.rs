@@ -61,6 +61,11 @@ struct Cli {
     /// is considered stale and ignored.
     #[arg(long, default_value = "30")]
     registration_ttl_secs: u64,
+
+    /// Optional address for the client operation listener (JSON-over-TCP).
+    /// Clients connect and send newline-delimited JSON `OrSetOp<String>` values.
+    #[arg(long)]
+    client_addr: Option<SocketAddr>,
 }
 
 #[tokio::main]
@@ -88,6 +93,6 @@ async fn main() -> anyhow::Result<()> {
         registration_ttl: std::time::Duration::from_secs(cli.registration_ttl_secs),
     };
 
-    let server = server::Server::new(cli.listen, advertise_addr, &node_name);
+    let server = server::Server::new(cli.listen, advertise_addr, &node_name, cli.client_addr);
     server.run(discovery_cfg).await
 }

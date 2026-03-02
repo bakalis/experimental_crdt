@@ -1,53 +1,70 @@
 //! Generic delta-CRDT trait and module re-exports.
 //!
-//! The engine owns a `DotVersionVector` per CRDT instance.
-//! Concrete CRDT implementations receive a `&mut DotVersionVector`
-//! on mutating operations so they can call `dvv.event()` to mint
-//! new dots and `dvv.dominates_dot()` to garbage-collect.
+//! DVV/logical-clock operations are abstracted into the engine.
+//! CRDT implementations receive a freshly-minted `Dot` on local ops
+//! and never directly manipulate a `DotVersionVector`.
 
 pub mod or_set;
 
-use std::fmt::Debug;
+use std::collections::HashMap;
 
-use crate::common::NodeId;
-use crate::logical_clocks::dot_version_vector::DotVersionVector;
+use crate::common::{Counter, NodeId};
+use crate::logical_clocks::dot_version_vector::Dot;
 
-/// A delta-CRDT that delegates causality tracking to a `DotVersionVector`.
+/// Trait implemented by CRDT delta types that carry causal metadata.
 ///
-/// All wire payloads are `Vec<u8>` — the CRDT owns its serialisation
-/// format and the engine treats them as opaque bytes stuffed into
-/// the protobuf `CrdtOp.payload` field.
-pub trait DeltaCrdt: Send + Sync + Debug + 'static {
-    /// Apply a **local** operation.
-    ///
-    /// 1. Call `dvv.event()` to mint a new dot for this mutation.
-    /// 2. Mutate internal state.
-    /// 3. Return the serialised delta bytes (for `CrdtOp.payload`).
-    fn apply_local(
-        &mut self,
-        dvv: &mut DotVersionVector,
-        node_id: &NodeId,
-        op_bytes: &[u8],
-    ) -> Vec<u8>;
+/// The engine calls `causal_context` to extract DVV info after merging a
+/// remote delta, and `set_causal_context` to annotate a local delta with
+/// the sender's full DVV state before pushing it to peers.
+pub trait DeltaContext {
+    /// Extract the causal metadata: `(context_map, dot_node, dot_counter)`.
+    fn causal_context(&self) -> (HashMap<NodeId, Counter>, NodeId, Counter);
 
-    /// Apply a **remote** delta received from another node.
-    ///
-    /// 1. Deserialise the delta from `payload`.
-    /// 2. Merge into internal state (must be idempotent).
-    /// 3. Merge the remote's causal context into `dvv`.
-    fn apply_remote(
+    /// Annotate this delta with the sender's full causal context.
+    fn set_causal_context(
         &mut self,
-        dvv: &mut DotVersionVector,
-        payload: &[u8],
+        context: HashMap<NodeId, Counter>,
+        node: NodeId,
+        counter: Counter,
     );
+}
 
-    /// Produce a full-state snapshot as bytes (for new joiners / pull responses).
-    fn encode_state(&self, dvv: &DotVersionVector) -> Vec<u8>;
+/// A delta-CRDT whose causality tracking is fully owned by the engine.
+///
+/// All DVV operations (`event`, `merge`, `dominates_dot`, `delta_since`)
+/// are performed exclusively by the engine. The CRDT only manages its own
+/// data structure using `Dot` values supplied by the engine.
+pub trait DeltaCrdt: Send + Sync + 'static {
+    /// The application-level operation type.
+    type Op: Send + Sync + 'static;
 
-    /// Merge a full remote state snapshot into this replica.
-    fn merge_state(
-        &mut self,
-        dvv: &mut DotVersionVector,
-        payload: &[u8],
-    );
+    /// The delta/state type — carries both CRDT data and causal metadata.
+    type Delta: Send + Sync + Clone + DeltaContext + 'static;
+
+    /// Apply a local op given a freshly-minted `dot` from the engine.
+    ///
+    /// Returns a delta describing the mutation.  The causal context fields
+    /// in the returned delta are left as defaults; the engine fills them in
+    /// via `set_causal_context` before sending.
+    fn apply_local(&mut self, dot: Dot, op: Self::Op) -> Self::Delta;
+
+    /// Merge a remote delta into local state (must be idempotent).
+    fn merge_delta(&mut self, delta: &Self::Delta);
+
+    /// Full-state snapshot for pull responses / initial sync.
+    ///
+    /// Causal context fields are left as defaults; the engine annotates
+    /// them via `set_causal_context` before sending.
+    fn full_state(&self) -> Self::Delta;
+
+    // ── Serialisation ───────────────────────────────────────────────────
+
+    fn encode_delta(delta: &Self::Delta) -> Vec<u8>;
+    fn decode_delta(
+        bytes: &[u8],
+    ) -> Result<Self::Delta, Box<dyn std::error::Error + Send + Sync>>;
+    fn encode_op(op: &Self::Op) -> Vec<u8>;
+    fn decode_op(
+        bytes: &[u8],
+    ) -> Result<Self::Op, Box<dyn std::error::Error + Send + Sync>>;
 }

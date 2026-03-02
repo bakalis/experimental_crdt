@@ -3,14 +3,15 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::{mpsc, Mutex};
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
 use crate::connection;
-use crate::crdt::or_set::OrSet;
-use crate::crdt_engine::{CrdtEngine, EngineHandle};
+use crate::crdt::or_set::{OrSet, OrSetOp};
+use crate::crdt_engine::CrdtEngine;
 use crate::discovery::{Discovery, DiscoveryConfig};
 use crate::dissemination::{PushBroadcast, SharedDissemination};
 use crate::common::NodeId;
@@ -64,17 +65,25 @@ pub struct Server {
     node_name: String,
     listen_addr: SocketAddr,
     advertise_addr: SocketAddr,
+    /// Optional address for the client operation listener (JSON-over-TCP).
+    client_addr: Option<SocketAddr>,
     manager: PeerManager,
     outbound_tasks: Arc<Mutex<OutboundTasks>>,
 }
 
 impl Server {
-    pub fn new(listen_addr: SocketAddr, advertise_addr: SocketAddr, node_name: &str) -> Self {
+    pub fn new(
+        listen_addr: SocketAddr,
+        advertise_addr: SocketAddr,
+        node_name: &str,
+        client_addr: Option<SocketAddr>,
+    ) -> Self {
         Self {
             node_id: uuid::Uuid::new_v4().to_string(),
             node_name: node_name.to_string(),
             listen_addr,
             advertise_addr,
+            client_addr,
             manager: PeerManager::new(),
             outbound_tasks: Arc::new(Mutex::new(OutboundTasks::new())),
         }
@@ -88,20 +97,61 @@ impl Server {
         let dissemination: SharedDissemination =
             Arc::new(PushBroadcast::new(self.manager.clone()));
 
-        // ── Build CRDT engine (OR-Set<String> as default) ───────────
-        let (engine_handle, engine_rx, engine) = CrdtEngine::new(
+        // ── Build CRDT engine (OR-Set<String>) ───────────────────────
+        let engine = CrdtEngine::<OrSet<String>>::new(
             self.node_id.clone(),
             "default-orset".to_string(),
-            Box::new(OrSet::<String>::new()),
+            OrSet::new(),
             dissemination.clone(),
             self.manager.clone(),
             None, // pull_interval: None for push-only, Some(Duration) for pull
         );
 
-        // Spawn engine task.
-        let engine_task = tokio::spawn(engine.run(engine_rx));
+        // Spawn pull loop (no-op for PushBroadcast since it doesn't support pull).
+        let pull_handle = engine.start_pull_loop();
 
-        // ── Build discovery service ─────────────────────────────────
+        // ── Optional client operation listener ───────────────────────
+        let client_handle: Option<JoinHandle<()>> = if let Some(addr) = self.client_addr {
+            let eng = engine.clone();
+            Some(tokio::spawn(async move {
+                let listener = match TcpListener::bind(addr).await {
+                    Ok(l) => l,
+                    Err(e) => {
+                        error!(%addr, %e, "failed to bind client listener");
+                        return;
+                    }
+                };
+                info!(%addr, "client op listener started");
+                loop {
+                    match listener.accept().await {
+                        Ok((stream, peer)) => {
+                            info!(%peer, "client connected");
+                            let eng2 = eng.clone();
+                            tokio::spawn(async move {
+                                let reader = BufReader::new(stream);
+                                let mut lines = reader.lines();
+                                while let Ok(Some(line)) = lines.next_line().await {
+                                    match serde_json::from_str::<OrSetOp<String>>(&line) {
+                                        Ok(op) => {
+                                            eng2.client_operation(op).await;
+                                        }
+                                        Err(e) => {
+                                            warn!(%peer, %e, "invalid client op; expected JSON OrSetOp");
+                                        }
+                                    }
+                                }
+                                info!(%peer, "client disconnected");
+                            });
+                        }
+                        Err(e) => error!(%e, "client accept failed"),
+                    }
+                }
+            }))
+        } else {
+            None
+        };
+
+        // ── Build discovery service ──────────────────────────────────
         let discovery = Discovery::new(
             discovery_cfg.clone(),
             self.node_id.clone(),
@@ -128,7 +178,7 @@ impl Server {
         )
         .await?;
 
-        // ── Spawn discovery reconciliation loop ─────────────────────
+        // ── Spawn discovery reconciliation loop ──────────────────────
         let disc_manager = self.manager.clone();
         let disc_connector = connector.clone();
         let discovery_handle = tokio::spawn(async move {
@@ -137,7 +187,7 @@ impl Server {
                 .await;
         });
 
-        // ── Bind TCP listener ───────────────────────────────────────
+        // ── Bind TCP listener ────────────────────────────────────────
         let listener = TcpListener::bind(self.listen_addr).await?;
         info!(
             addr = %self.listen_addr,
@@ -146,7 +196,7 @@ impl Server {
             "listening"
         );
 
-        // ── Main event loop ────���────────────────────────────────────
+        // ── Main event loop ──────────────────────────────────────────
         loop {
             tokio::select! {
                 accept_result = listener.accept() => {
@@ -172,17 +222,14 @@ impl Server {
                     // Route CRDT operations to the engine.
                     match envelope.payload {
                         Some(Payload::CrdtOp(crdt_op)) => {
-                            if let Err(e) = engine_handle
-                                .apply_remote(
+                            engine
+                                .server_message(
                                     crdt_op.origin_node_id,
                                     crdt_op.crdt_id,
                                     crdt_op.payload,
                                     crdt_op.hlc_ts,
                                 )
-                                .await
-                            {
-                                warn!(%addr, %e, "failed to forward to engine");
-                            }
+                                .await;
                         }
                         other => {
                             info!(%addr, ?other, "app received non-CRDT message");
@@ -193,7 +240,10 @@ impl Server {
                 _ = tokio::signal::ctrl_c() => {
                     info!("shutdown signal received — deregistering from S3");
                     discovery_handle.abort();
-                    engine_task.abort();
+                    pull_handle.abort();
+                    if let Some(h) = client_handle {
+                        h.abort();
+                    }
 
                     if let Err(e) = shutdown_discovery.deregister().await {
                         error!(%e, "failed to deregister from S3");
