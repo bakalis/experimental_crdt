@@ -24,19 +24,21 @@ pub enum OrSetOp<E> {
 
 // ── Delta ───────────────────────────────────────────────────────────────
 
-/// Delta produced by one operation — also used as the full-state snapshot
-/// type (adds = all entries, removes = empty).
+/// Delta produced by one operation — also used as the full-state snapshot.
 ///
-/// The `dvv_*` fields are left as defaults by the CRDT; the engine fills
-/// them in via `DeltaContext::set_causal_context` before sending.
+/// The `context/dot_node/dot_counter` fields are left as defaults by the
+/// CRDT; the engine fills them in via `DeltaContext::set_causal_context`
+/// before sending.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrSetDelta<E> {
+    /// New (element, dot) pairs being added.
     pub adds: Vec<(E, Dot)>,
-    pub removes: Vec<Dot>,
-    /// Sender's DVV effective map — filled in by the engine, not the CRDT.
-    pub dvv_context: HashMap<NodeId, Counter>,
-    pub dvv_dot_node: NodeId,
-    pub dvv_dot_counter: Counter,
+    /// New tombstones: (removed_add_dot, remove_event_dot).
+    pub tombstones: Vec<(Dot, Dot)>,
+    /// Sender's causal context for DVV merge — filled in by the engine.
+    pub context: HashMap<NodeId, Counter>,
+    pub dot_node: NodeId,
+    pub dot_counter: Counter,
 }
 
 impl<E> DeltaContext for OrSetDelta<E>
@@ -45,9 +47,9 @@ where
 {
     fn causal_context(&self) -> (HashMap<NodeId, Counter>, NodeId, Counter) {
         (
-            self.dvv_context.clone(),
-            self.dvv_dot_node.clone(),
-            self.dvv_dot_counter,
+            self.context.clone(),
+            self.dot_node.clone(),
+            self.dot_counter,
         )
     }
 
@@ -57,9 +59,9 @@ where
         node: NodeId,
         counter: Counter,
     ) {
-        self.dvv_context = context;
-        self.dvv_dot_node = node;
-        self.dvv_dot_counter = counter;
+        self.context = context;
+        self.dot_node = node;
+        self.dot_counter = counter;
     }
 }
 
@@ -67,7 +69,10 @@ where
 
 #[derive(Debug, Clone)]
 pub struct OrSet<E: Clone + Eq + Hash + Debug> {
-    entries: HashMap<E, HashSet<Dot>>,
+    /// Active elements: element → set of dots that justify its presence.
+    adds: HashMap<E, HashSet<Dot>>,
+    /// Tombstones: original add-dot → remove-event dot.
+    tombstones: HashMap<Dot, Dot>,
 }
 
 impl<E: Clone + Eq + Hash + Debug> Default for OrSet<E> {
@@ -79,28 +84,29 @@ impl<E: Clone + Eq + Hash + Debug> Default for OrSet<E> {
 impl<E: Clone + Eq + Hash + Debug> OrSet<E> {
     pub fn new() -> Self {
         Self {
-            entries: HashMap::new(),
+            adds: HashMap::new(),
+            tombstones: HashMap::new(),
         }
     }
 
     pub fn contains(&self, elem: &E) -> bool {
-        self.entries
+        self.adds
             .get(elem)
-            .map(|dots| !dots.is_empty())
+            .map(|dots| dots.iter().any(|d| !self.tombstones.contains_key(d)))
             .unwrap_or(false)
     }
 
     pub fn elements(&self) -> impl Iterator<Item = &E> {
-        self.entries
+        self.adds
             .iter()
-            .filter(|(_, dots)| !dots.is_empty())
+            .filter(|(_, dots)| dots.iter().any(|d| !self.tombstones.contains_key(d)))
             .map(|(elem, _)| elem)
     }
 
     pub fn len(&self) -> usize {
-        self.entries
+        self.adds
             .values()
-            .filter(|dots| !dots.is_empty())
+            .filter(|dots| dots.iter().any(|d| !self.tombstones.contains_key(d)))
             .count()
     }
 
@@ -119,48 +125,52 @@ where
     fn apply_local(&mut self, dot: Dot, op: OrSetOp<E>) -> OrSetDelta<E> {
         match op {
             OrSetOp::Add(elem) => {
-                // Remove all existing dots for this element (add-wins / re-add).
-                let old_dots: Vec<Dot> = self
-                    .entries
-                    .remove(&elem)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .collect();
-
-                let mut new_dots = HashSet::new();
-                new_dots.insert(dot.clone());
-                self.entries.insert(elem.clone(), new_dots);
-
-                tracing::info!("elements: {:?}", self.elements().collect::<Vec<_>>());
+                self.adds
+                    .entry(elem.clone())
+                    .or_default()
+                    .insert(dot.clone());
 
                 OrSetDelta {
                     adds: vec![(elem, dot)],
-                    removes: old_dots,
+                    tombstones: vec![],
                     // Engine fills these in before sending.
-                    dvv_context: HashMap::new(),
-                    dvv_dot_node: String::new(),
-                    dvv_dot_counter: 0,
+                    context: HashMap::new(),
+                    dot_node: String::new(),
+                    dot_counter: 0,
                 }
             }
 
             OrSetOp::Remove(elem) => {
-                let removed_dots: Vec<Dot> = self
-                    .entries
+                let remove_dot = dot;
+                let add_dots: Vec<Dot> = self
+                    .adds
                     .remove(&elem)
                     .unwrap_or_default()
                     .into_iter()
                     .collect();
 
+                let new_tombstones: Vec<(Dot, Dot)> = add_dots
+                    .into_iter()
+                    .map(|add_dot| {
+                        self.tombstones.insert(add_dot.clone(), remove_dot.clone());
+                        (add_dot, remove_dot.clone())
+                    })
+                    .collect();
+
                 OrSetDelta {
                     adds: vec![],
-                    removes: removed_dots,
+                    tombstones: new_tombstones,
                     // Engine fills these in before sending.
-                    dvv_context: HashMap::new(),
-                    dvv_dot_node: String::new(),
-                    dvv_dot_counter: 0,
+                    context: HashMap::new(),
+                    dot_node: String::new(),
+                    dot_counter: 0,
                 }
             }
         }
+    }
+
+    fn get_random_element(&self) -> Option<String> {
+        self.elements().next().cloned().map(|e| format!("{:?}", e))
     }
 
     fn print_state(&self) -> String {
@@ -176,39 +186,48 @@ where
     }
 
     fn merge_delta(&mut self, delta: &OrSetDelta<E>) {
-        // 1. Remove tombstoned dots.
-        for dot in &delta.removes {
-            for dots in self.entries.values_mut() {
-                dots.remove(dot);
+        // 1. Apply tombstones: record them and evict the add-dots from adds.
+        for (add_dot, remove_dot) in &delta.tombstones {
+            self.tombstones.insert(add_dot.clone(), remove_dot.clone());
+            for dots in self.adds.values_mut() {
+                dots.remove(add_dot);
             }
         }
-        self.entries.retain(|_, dots| !dots.is_empty());
+        self.adds.retain(|_, dots| !dots.is_empty());
 
-        // 2. Apply adds (idempotent via HashSet).
+        // 2. Apply adds (skip any dot that is already tombstoned).
         for (elem, dot) in &delta.adds {
-            self.entries
-                .entry(elem.clone())
-                .or_default()
-                .insert(dot.clone());
+            if !self.tombstones.contains_key(dot) {
+                self.adds
+                    .entry(elem.clone())
+                    .or_default()
+                    .insert(dot.clone());
+            }
         }
     }
 
     fn full_state(&self) -> OrSetDelta<E> {
         let adds: Vec<(E, Dot)> = self
-            .entries
+            .adds
             .iter()
             .flat_map(|(elem, dots)| {
                 dots.iter().map(move |dot| (elem.clone(), dot.clone()))
             })
             .collect();
 
+        let tombstones: Vec<(Dot, Dot)> = self
+            .tombstones
+            .iter()
+            .map(|(add_dot, remove_dot)| (add_dot.clone(), remove_dot.clone()))
+            .collect();
+
         OrSetDelta {
             adds,
-            removes: vec![],
+            tombstones,
             // Engine fills these in before sending.
-            dvv_context: HashMap::new(),
-            dvv_dot_node: String::new(),
-            dvv_dot_counter: 0,
+            context: HashMap::new(),
+            dot_node: String::new(),
+            dot_counter: 0,
         }
     }
 
@@ -295,7 +314,7 @@ mod tests {
         let _ = engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("x".to_string()));
         assert_eq!(dvv.dot.counter, 1);
 
-        // Engine mints a dot for every op, including Remove.
+        // Remove mints a new dot (tombstone event) — DVV advances.
         let _ = engine_apply_local(&mut set, &mut dvv, OrSetOp::Remove("x".to_string()));
         assert_eq!(dvv.dot.counter, 2);
         assert!(!set.contains(&"x".to_string()));
@@ -318,6 +337,7 @@ mod tests {
         let readd_delta =
             engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("x".to_string()));
 
+        // A's re-add dot is not tombstoned by B's remove (which only tombstones A:1).
         engine_merge_delta(&mut a_set, &mut a_dvv, &remove_delta);
         assert!(a_set.contains(&"x".to_string()));
 
@@ -350,6 +370,8 @@ mod tests {
 
         engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("x".to_string()));
         engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("y".to_string()));
+        // Remove "x" so full state includes a tombstone.
+        engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Remove("x".to_string()));
 
         let mut state = a_set.full_state();
         state.set_causal_context(
@@ -357,6 +379,10 @@ mod tests {
             a_dvv.dot.node_id.clone(),
             a_dvv.dot.counter,
         );
+
+        // Full state must carry tombstones.
+        assert!(!state.tombstones.is_empty());
+
         let state_bytes = OrSet::<String>::encode_delta(&state);
         let decoded = OrSet::<String>::decode_delta(&state_bytes).unwrap();
 
@@ -364,8 +390,30 @@ mod tests {
         let mut b_dvv = DotVersionVector::new(nid("B"));
         engine_merge_delta(&mut b_set, &mut b_dvv, &decoded);
 
-        assert!(b_set.contains(&"x".to_string()));
+        assert!(!b_set.contains(&"x".to_string()));
         assert!(b_set.contains(&"y".to_string()));
-        assert_eq!(b_dvv.effective_counter(&nid("A")), 2);
+        assert_eq!(b_dvv.effective_counter(&nid("A")), 3);
+    }
+
+    #[test]
+    fn incremental_delta_only_contains_new_ops() {
+        let mut set = OrSet::<String>::new();
+        let mut dvv = DotVersionVector::new(nid("A"));
+
+        // Add "x" — delta carries only this add, no tombstones.
+        let add_delta = engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("x".to_string()));
+        assert_eq!(add_delta.adds.len(), 1);
+        assert_eq!(add_delta.tombstones.len(), 0);
+
+        // Add "y" — delta carries only this add, no tombstones.
+        let add_y_delta = engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("y".to_string()));
+        assert_eq!(add_y_delta.adds.len(), 1);
+        assert_eq!(add_y_delta.tombstones.len(), 0);
+
+        // Remove "x" — delta carries only the tombstone, no adds.
+        let remove_delta =
+            engine_apply_local(&mut set, &mut dvv, OrSetOp::Remove("x".to_string()));
+        assert_eq!(remove_delta.adds.len(), 0);
+        assert_eq!(remove_delta.tombstones.len(), 1);
     }
 }

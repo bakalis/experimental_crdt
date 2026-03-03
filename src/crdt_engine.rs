@@ -205,6 +205,11 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             pull_interval,
         }
     }
+    
+    pub async fn get_random_element(&self) -> Option<String> {
+        let inner = self.inner.lock().await;
+        inner.crdt.get_random_element()
+    }
 
     pub async fn print_state(&self) {
         let inner = self.inner.lock().await;

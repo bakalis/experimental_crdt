@@ -13,7 +13,7 @@ use crate::connection;
 use crate::crdt::or_set::{OrSet, OrSetOp};
 use crate::crdt_engine::CrdtEngine;
 use crate::discovery::{Discovery, DiscoveryConfig};
-use crate::dissemination::{PushBroadcast, SharedDissemination};
+use crate::dissemination::{PullPeriodic, SharedDissemination};
 use crate::common::NodeId;
 use crate::peer_manager::PeerManager;
 use crate::proto::envelope::Payload;
@@ -93,9 +93,9 @@ impl Server {
         let (app_tx, mut app_rx) = mpsc::channel::<(SocketAddr, Envelope)>(1024);
 
         // ── Build dissemination strategy ─────────────────────────────
-        // Default: PushBroadcast.  Swap to PullPeriodic or PushPull here.
+        // Pull-only: peers periodically request deltas from each other.
         let dissemination: SharedDissemination =
-            Arc::new(PushBroadcast::new(self.manager.clone()));
+            Arc::new(PullPeriodic::new(self.manager.clone()));
 
         // ── Build CRDT engine (OR-Set<String>) ───────────────────────
         let engine = CrdtEngine::<OrSet<String>>::new(
@@ -104,7 +104,7 @@ impl Server {
             OrSet::new(),
             dissemination.clone(),
             self.manager.clone(),
-            None, // pull_interval: None for push-only, Some(Duration) for pull
+            None, // pull_interval: None falls back to default 10 s for PullPeriodic
         );
 
         // Spawn pull loop (no-op for PushBroadcast since it doesn't support pull).
@@ -222,9 +222,16 @@ impl Server {
                 }
 
                 _ = update_interval.tick() => {
-                    if updates < 10 {
-                        let op = OrSetOp::Add(format!("tick-{}", chrono::Utc::now().timestamp()));
-                        engine.client_operation(op).await;
+                    if updates < 20 {
+                        if rand::random::<f64>() < 0.2 {
+                            if let Some(random_element) = engine.get_random_element().await {
+                                let op = OrSetOp::Remove(random_element);
+                                engine.client_operation(op).await;
+                            }
+                        } else {
+                            let op = OrSetOp::Add(format!("tick-{}", chrono::Utc::now().timestamp()));
+                            engine.client_operation(op).await;
+                        }
                     }
                     engine.print_state().await;
                     updates += 1;
