@@ -222,9 +222,16 @@ impl Server {
                 }
 
                 _ = update_interval.tick() => {
-                    if updates < 10 {
-                        let op = OrSetOp::Add(format!("tick-{}", chrono::Utc::now().timestamp()));
-                        engine.client_operation(op).await;
+                    if updates < 20 {
+                        if rand::random::<f64>() < 0.2 {
+                            if let Some(random_element) = engine.get_random_element().await {
+                                let op = OrSetOp::Remove(random_element);
+                                engine.client_operation(op).await;
+                            }
+                        } else {
+                            let op = OrSetOp::Add(format!("tick-{}", chrono::Utc::now().timestamp()));
+                            engine.client_operation(op).await;
+                        }
                     }
                     engine.print_state().await;
                     updates += 1;

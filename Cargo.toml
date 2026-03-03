@@ -23,6 +23,7 @@ dashmap     = "6"
 anyhow      = "1"
 dotenvy     = "0.15"
 async-trait = "0.1"                              # ← NEW
+rand        = "0.8"
 
 # S3 / MinIO
 aws-config          = { version = "1", features = ["behavior-version-latest"] }

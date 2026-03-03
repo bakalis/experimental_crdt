@@ -130,8 +130,6 @@ where
                     .or_default()
                     .insert(dot.clone());
 
-                tracing::info!("elements: {:?}", self.elements().collect::<Vec<_>>());
-
                 OrSetDelta {
                     adds: vec![(elem, dot)],
                     tombstones: vec![],
@@ -169,6 +167,10 @@ where
                 }
             }
         }
+    }
+
+    fn get_random_element(&self) -> Option<String> {
+        self.elements().next().cloned().map(|e| format!("{:?}", e))
     }
 
     fn print_state(&self) -> String {
