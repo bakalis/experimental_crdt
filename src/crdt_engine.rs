@@ -206,6 +206,11 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         }
     }
 
+    pub async fn print_state(&self) {
+        let inner = self.inner.lock().await;
+        inner.crdt.print_state();
+    }
+
     /// Called when a client wants to perform a local write.
     pub async fn client_operation(&self, op: C::Op) {
         self.inner.lock().await.client_operation(op).await;

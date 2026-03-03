@@ -196,6 +196,9 @@ impl Server {
             "listening"
         );
 
+        let mut update_interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        let mut updates = 0;
+
         // ── Main event loop ──────────────────────────────────────────
         loop {
             tokio::select! {
@@ -216,6 +219,15 @@ impl Server {
                         }
                         Err(e) => error!(%e, "accept failed"),
                     }
+                }
+
+                _ = update_interval.tick() => {
+                    if updates < 10 {
+                        let op = OrSetOp::Add(format!("tick-{}", chrono::Utc::now().timestamp()));
+                        engine.client_operation(op).await;
+                    }
+                    engine.print_state().await;
+                    updates += 1;
                 }
 
                 Some((addr, envelope)) = app_rx.recv() => {

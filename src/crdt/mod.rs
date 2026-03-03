@@ -57,6 +57,8 @@ pub trait DeltaCrdt: Send + Sync + 'static {
     /// them via `set_causal_context` before sending.
     fn full_state(&self) -> Self::Delta;
 
+    fn print_state(&self) -> String;
+
     // ── Serialisation ───────────────────────────────────────────────────
 
     fn encode_delta(delta: &Self::Delta) -> Vec<u8>;

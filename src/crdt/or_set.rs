@@ -8,6 +8,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use crate::common::{Counter, NodeId};
 use crate::crdt::{DeltaCrdt, DeltaContext};
@@ -160,6 +161,18 @@ where
                 }
             }
         }
+    }
+
+    fn print_state(&self) -> String {
+        let mut elems = self.elements().cloned().collect::<Vec<_>>();
+        elems.sort_by(|a, b| format!("{:?}", a).cmp(&format!("{:?}", b)));
+        let elem_str = elems
+            .iter()
+            .map(|e| format!("{:?}", e))
+            .collect::<Vec<_>>()
+            .join(", ");
+        info!("current state: {}", elem_str);
+        elem_str
     }
 
     fn merge_delta(&mut self, delta: &OrSetDelta<E>) {
