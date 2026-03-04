@@ -1,8 +1,6 @@
-//! Generic delta-CRDT trait and module re-exports.
+//! Generic delta-CRDT trait.
 //!
-//! DVV/logical-clock operations are abstracted into the engine.
-//! CRDT implementations receive a freshly-minted `Dot` on local ops
-//! and never directly manipulate a `DotVersionVector`.
+//! CRDT implementations receive a freshly-minted `Dot` on local ops.
 
 pub mod or_set;
 
@@ -35,20 +33,21 @@ pub trait DeltaContext {
 /// are performed exclusively by the engine. The CRDT only manages its own
 /// data structure using `Dot` values supplied by the engine.
 pub trait DeltaCrdt: Send + Sync + 'static {
+
     /// The application-level operation type.
     type Op: Send + Sync + 'static;
 
     /// The delta/state type — carries both CRDT data and causal metadata.
     type Delta: Send + Sync + Clone + DeltaContext + 'static;
 
-    /// Apply a local op given a freshly-minted `dot` from the engine.
+    /// Apply a local op.
     ///
     /// Returns a delta describing the mutation.  The causal context fields
     /// in the returned delta are left as defaults; the engine fills them in
     /// via `set_causal_context` before sending.
     fn apply_local(&mut self, dot: Dot, op: Self::Op) -> Self::Delta;
 
-    /// Merge a remote delta into local state (must be idempotent).
+    /// Merge a remote delta into local state. 
     fn merge_delta(&mut self, delta: &Self::Delta);
 
     /// Full-state snapshot for pull responses / initial sync.

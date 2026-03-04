@@ -1,5 +1,3 @@
-//! Top-level server with S3-backed peer discovery and delta-CRDT engine.
-
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -64,8 +62,8 @@ pub struct Server {
     node_id: String,
     node_name: String,
     listen_addr: SocketAddr,
-    advertise_addr: SocketAddr,
     /// Optional address for the client operation listener (JSON-over-TCP).
+    advertise_addr: SocketAddr,
     client_addr: Option<SocketAddr>,
     manager: PeerManager,
     outbound_tasks: Arc<Mutex<OutboundTasks>>,
@@ -107,7 +105,6 @@ impl Server {
             None, // pull_interval: None falls back to default 10 s for PullPeriodic
         );
 
-        // Spawn pull loop (no-op for PushBroadcast since it doesn't support pull).
         let pull_handle = engine.start_pull_loop();
 
         // ── Optional client operation listener ───────────────────────
@@ -170,6 +167,8 @@ impl Server {
             outbound_tasks: Arc::clone(&self.outbound_tasks),
         };
 
+        // Main discovery object is moved to its task, 
+        // but we create a separate handle for shutdown deregistration.
         let shutdown_discovery = Discovery::new(
             discovery_cfg,
             self.node_id.clone(),
@@ -196,10 +195,10 @@ impl Server {
             "listening"
         );
 
+        // just for testing: periodically perform random client ops and print state
         let mut update_interval = tokio::time::interval(std::time::Duration::from_secs(5));
         let mut updates = 0;
 
-        // ── Main event loop ──────────────────────────────────────────
         loop {
             tokio::select! {
                 accept_result = listener.accept() => {
@@ -256,6 +255,8 @@ impl Server {
                     }
                 }
 
+                // TODO: also handle all other shutdown signals (SIGINT, SIGTERM, etc.) 
+                // and do graceful shutdown.
                 _ = tokio::signal::ctrl_c() => {
                     info!("shutdown signal received — deregistering from S3");
                     discovery_handle.abort();
