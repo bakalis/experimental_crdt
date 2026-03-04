@@ -56,6 +56,13 @@ pub trait DeltaCrdt: Send + Sync + 'static {
     /// them via `set_causal_context` before sending.
     fn full_state(&self) -> Self::Delta;
 
+    /// Minimal delta for a peer whose causal knowledge is `remote_knowledge`.
+    ///
+    /// Only adds and tombstones that the remote has not yet seen are
+    /// included.  Causal context fields are left as defaults; the engine
+    /// annotates them via `set_causal_context` before sending.
+    fn delta_since(&self, remote_knowledge: &HashMap<NodeId, Counter>) -> Self::Delta;
+
     fn print_state(&self) -> String;
 
     // TODO: NOT GENERIC: need to be refactored after testing is over

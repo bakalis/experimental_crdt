@@ -117,7 +117,7 @@ impl<C: DeltaCrdt> EngineInner<C> {
             return;
         }
 
-        let mut state = self.crdt.full_state();
+        let mut state = self.crdt.delta_since(&remote_knowledge);
         state.set_causal_context(
             self.dvv.effective_map(),
             self.dvv.dot.node_id.clone(),

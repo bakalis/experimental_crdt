@@ -231,6 +231,44 @@ where
         }
     }
 
+    fn delta_since(&self, remote_knowledge: &HashMap<NodeId, Counter>) -> OrSetDelta<E> {
+        // Include only add-dots the remote hasn't seen yet.
+        let adds: Vec<(E, Dot)> = self
+            .adds
+            .iter()
+            .flat_map(|(elem, dots)| {
+                dots.iter()
+                    .filter(|dot| {
+                        dot.counter > remote_knowledge.get(&dot.node_id).copied().unwrap_or(0)
+                    })
+                    .map(move |dot| (elem.clone(), dot.clone()))
+            })
+            .collect();
+
+        // Include only tombstones whose remove-event is new to the remote.
+        let tombstones: Vec<(Dot, Dot)> = self
+            .tombstones
+            .iter()
+            .filter(|(_, remove_dot)| {
+                remove_dot.counter
+                    > remote_knowledge
+                        .get(&remove_dot.node_id)
+                        .copied()
+                        .unwrap_or(0)
+            })
+            .map(|(add_dot, remove_dot)| (add_dot.clone(), remove_dot.clone()))
+            .collect();
+
+        OrSetDelta {
+            adds,
+            tombstones,
+            // Engine fills these in before sending.
+            context: HashMap::new(),
+            dot_node: String::new(),
+            dot_counter: 0,
+        }
+    }
+
     fn encode_delta(delta: &OrSetDelta<E>) -> Vec<u8> {
         serde_json::to_vec(delta).expect("delta serialisation")
     }
@@ -256,6 +294,7 @@ where
 mod tests {
     use super::*;
     use crate::logical_clocks::dot_version_vector::DotVersionVector;
+    use std::collections::HashMap;
 
     fn nid(s: &str) -> NodeId {
         s.to_string()
@@ -415,5 +454,143 @@ mod tests {
             engine_apply_local(&mut set, &mut dvv, OrSetOp::Remove("x".to_string()));
         assert_eq!(remove_delta.adds.len(), 0);
         assert_eq!(remove_delta.tombstones.len(), 1);
+    }
+
+    // ── delta_since tests ───────────────────────────────────────────────
+
+    #[test]
+    fn delta_since_empty_remote_equals_full_state() {
+        let mut set = OrSet::<String>::new();
+        let mut dvv = DotVersionVector::new(nid("A"));
+
+        engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("x".to_string()));
+        engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("y".to_string()));
+        engine_apply_local(&mut set, &mut dvv, OrSetOp::Remove("x".to_string()));
+
+        let empty_knowledge = HashMap::new();
+        let delta = set.delta_since(&empty_knowledge);
+
+        // A brand-new joiner must receive every add and every tombstone.
+        let full = set.full_state();
+        assert_eq!(delta.adds.len(), full.adds.len());
+        assert_eq!(delta.tombstones.len(), full.tombstones.len());
+    }
+
+    #[test]
+    fn delta_since_up_to_date_remote_is_empty() {
+        let mut set = OrSet::<String>::new();
+        let mut dvv = DotVersionVector::new(nid("A"));
+
+        engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("x".to_string()));
+        engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("y".to_string()));
+
+        // Remote already knows everything.
+        let delta = set.delta_since(&dvv.effective_map());
+        assert!(delta.adds.is_empty());
+        assert!(delta.tombstones.is_empty());
+    }
+
+    #[test]
+    fn delta_since_sends_only_missing_adds() {
+        let mut a_set = OrSet::<String>::new();
+        let mut a_dvv = DotVersionVector::new(nid("A"));
+
+        // A adds "x" then "y".
+        engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("x".to_string()));
+        let snapshot_knowledge = a_dvv.effective_map(); // B knows up to here
+        engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("y".to_string()));
+
+        // B only knows about A:1 — should receive only the "y" add.
+        let delta = a_set.delta_since(&snapshot_knowledge);
+        assert_eq!(delta.adds.len(), 1);
+        assert_eq!(delta.adds[0].0, "y".to_string());
+        assert!(delta.tombstones.is_empty());
+    }
+
+    #[test]
+    fn delta_since_sends_only_missing_tombstones() {
+        let mut a_set = OrSet::<String>::new();
+        let mut a_dvv = DotVersionVector::new(nid("A"));
+
+        // A adds "x" and "y"; B syncs at this point.
+        engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("x".to_string()));
+        engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("y".to_string()));
+        let b_knowledge = a_dvv.effective_map();
+
+        // A then removes "x" — B doesn't know yet.
+        engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Remove("x".to_string()));
+
+        let delta = a_set.delta_since(&b_knowledge);
+        assert!(delta.adds.is_empty(), "no new adds expected");
+        assert_eq!(delta.tombstones.len(), 1, "B is missing the remove tombstone");
+    }
+
+    #[test]
+    fn delta_since_pull_response_converges() {
+        // Simulate the full pull protocol: A has state, B pulls with its knowledge.
+        let mut a_set = OrSet::<String>::new();
+        let mut a_dvv = DotVersionVector::new(nid("A"));
+        let mut b_set = OrSet::<String>::new();
+        let mut b_dvv = DotVersionVector::new(nid("B"));
+
+        // A adds "x", "y", then removes "x".
+        engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("x".to_string()));
+        engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("y".to_string()));
+        engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Remove("x".to_string()));
+
+        // B has no state; it sends its empty knowledge map in a pull request.
+        let b_knowledge = b_dvv.effective_map();
+
+        // A responds with a minimal delta (equals full state here since B is empty).
+        let mut response = a_set.delta_since(&b_knowledge);
+        response.set_causal_context(
+            a_dvv.effective_map(),
+            a_dvv.dot.node_id.clone(),
+            a_dvv.dot.counter,
+        );
+
+        // B merges the response.
+        engine_merge_delta(&mut b_set, &mut b_dvv, &response);
+
+        assert!(!b_set.contains(&"x".to_string()), "x should be removed");
+        assert!(b_set.contains(&"y".to_string()), "y should be present");
+        assert_eq!(b_dvv.effective_counter(&nid("A")), 3);
+    }
+
+    #[test]
+    fn delta_since_partial_pull_response_converges() {
+        // B already has some state from A; a partial pull should bring it up to date.
+        let mut a_set = OrSet::<String>::new();
+        let mut a_dvv = DotVersionVector::new(nid("A"));
+        let mut b_set = OrSet::<String>::new();
+        let mut b_dvv = DotVersionVector::new(nid("B"));
+
+        // A adds "x"; B syncs.
+        let delta_x = engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("x".to_string()));
+        engine_merge_delta(&mut b_set, &mut b_dvv, &delta_x);
+        assert!(b_set.contains(&"x".to_string()));
+
+        // A then adds "y" and removes "x" — B hasn't seen these yet.
+        engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("y".to_string()));
+        engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Remove("x".to_string()));
+
+        // B pulls with its current knowledge.
+        let b_knowledge = b_dvv.effective_map();
+        let mut response = a_set.delta_since(&b_knowledge);
+        response.set_causal_context(
+            a_dvv.effective_map(),
+            a_dvv.dot.node_id.clone(),
+            a_dvv.dot.counter,
+        );
+
+        // The response must be minimal: 1 new add ("y") and 1 new tombstone.
+        assert_eq!(response.adds.len(), 1);
+        assert_eq!(response.tombstones.len(), 1);
+
+        engine_merge_delta(&mut b_set, &mut b_dvv, &response);
+
+        assert!(!b_set.contains(&"x".to_string()), "x should be removed");
+        assert!(b_set.contains(&"y".to_string()), "y should be present");
+        assert_eq!(b_dvv.effective_counter(&nid("A")), 3);
     }
 }
