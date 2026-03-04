@@ -4,14 +4,12 @@ use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use aws_credential_types::Credentials;
-use aws_sdk_s3::config::{BehaviorVersion, Region};
-use aws_sdk_s3::Client as S3Client;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
 
 use crate::peer_manager::PeerManager;
+use crate::s3_client::S3Client;
 use crate::server::PeerConnector;
 use crate::common::NodeId;
 
@@ -56,25 +54,14 @@ impl Discovery {
         node_name: String,
         advertise_addr: SocketAddr,
     ) -> anyhow::Result<Self> {
-        let creds = Credentials::new(
+        let client = S3Client::new(
+            &config.endpoint,
+            &config.region,
             &config.access_key,
             &config.secret_key,
-            None,
-            None,
-            "crdt-static",
         );
 
-        let s3_config = aws_sdk_s3::Config::builder()
-            .behavior_version(BehaviorVersion::latest())
-            .region(Region::new(config.region.clone()))
-            .endpoint_url(&config.endpoint)
-            .credentials_provider(creds)
-            .force_path_style(true)
-            .build();
-
-        let client = S3Client::from_conf(s3_config);
-
-        Self::ensure_bucket(&client, &config.bucket).await?;
+        client.ensure_bucket(&config.bucket).await?;
 
         Ok(Self {
             client,
@@ -89,22 +76,6 @@ impl Discovery {
         format!("nodes/{}.json", self.node_id)
     }
 
-    // ── Bucket bootstrap ────────────────────────────────────────────
-
-    async fn ensure_bucket(client: &S3Client, bucket: &str) -> anyhow::Result<()> {
-        match client.head_bucket().bucket(bucket).send().await {
-            Ok(_) => {
-                debug!(bucket, "bucket already exists");
-                Ok(())
-            }
-            Err(_) => {
-                info!(bucket, "creating discovery bucket");
-                client.create_bucket().bucket(bucket).send().await?;
-                Ok(())
-            }
-        }
-    }
-
     // ── Register / deregister ───────────────────────────────────────
 
     pub async fn register(&self) -> anyhow::Result<()> {
@@ -117,12 +88,7 @@ impl Discovery {
         let body = serde_json::to_vec_pretty(&registration)?;
 
         self.client
-            .put_object()
-            .bucket(&self.config.bucket)
-            .key(self.self_key())
-            .body(body.into())
-            .content_type("application/json")
-            .send()
+            .put_object(&self.config.bucket, &self.self_key(), body, "application/json")
             .await?;
 
         info!(
@@ -135,10 +101,7 @@ impl Discovery {
 
     pub async fn deregister(&self) -> anyhow::Result<()> {
         self.client
-            .delete_object()
-            .bucket(&self.config.bucket)
-            .key(self.self_key())
-            .send()
+            .delete_object(&self.config.bucket, &self.self_key())
             .await?;
 
         info!(node_id = %self.node_id, "deregistered from S3");
@@ -152,63 +115,36 @@ impl Discovery {
         let now = Utc::now();
         let ttl = chrono::Duration::from_std(self.config.registration_ttl)?;
 
-        let mut continuation_token: Option<String> = None;
-        loop {
-            let mut req = self
-                .client
-                .list_objects_v2()
-                .bucket(&self.config.bucket)
-                .prefix("nodes/");
+        let keys = self.client.list_object_keys(&self.config.bucket, "nodes/").await?;
 
-            if let Some(token) = &continuation_token {
-                req = req.continuation_token(token);
+        for key in &keys {
+            if *key == self.self_key() {
+                continue;
             }
 
-            let resp = req.send().await?;
-
-            let contents = resp.contents();
-
-            if !contents.is_empty() {
-                for obj in contents {
-                    let key = match obj.key() {
-                        Some(k) => k,
-                        None => continue,
-                    };
-
-                    if key == self.self_key() {
-                        continue;
-                    }
-
-                    match self.fetch_registration(key).await {
-                        Ok(reg) => {
-                            let age = now - reg.heartbeat;
-                            if age <= ttl {
-                                debug!(
-                                    node_id = %reg.node_id,
-                                    addr = %reg.addr,
-                                    age_secs = age.num_seconds(),
-                                    "discovered live peer"
-                                );
-                                peers.push(reg);
-                            } else {
-                                warn!(
-                                    node_id = %reg.node_id,
-                                    addr = %reg.addr,
-                                    age_secs = age.num_seconds(),
-                                    "ignoring stale registration"
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            warn!(key, %e, "failed to read peer registration");
-                        }
+            match self.fetch_registration(key).await {
+                Ok(reg) => {
+                    let age = now - reg.heartbeat;
+                    if age <= ttl {
+                        debug!(
+                            node_id = %reg.node_id,
+                            addr = %reg.addr,
+                            age_secs = age.num_seconds(),
+                            "discovered live peer"
+                        );
+                        peers.push(reg);
+                    } else {
+                        warn!(
+                            node_id = %reg.node_id,
+                            addr = %reg.addr,
+                            age_secs = age.num_seconds(),
+                            "ignoring stale registration"
+                        );
                     }
                 }
-            }
-
-            match resp.next_continuation_token() {
-                Some(token) => continuation_token = Some(token.to_string()),
-                None => break,
+                Err(e) => {
+                    warn!(key, %e, "failed to read peer registration");
+                }
             }
         }
 
@@ -216,16 +152,8 @@ impl Discovery {
     }
 
     async fn fetch_registration(&self, key: &str) -> anyhow::Result<NodeRegistration> {
-        let resp = self
-            .client
-            .get_object()
-            .bucket(&self.config.bucket)
-            .key(key)
-            .send()
-            .await?;
-
-        let body = resp.body.collect().await?;
-        let reg: NodeRegistration = serde_json::from_slice(&body.into_bytes())?;
+        let body = self.client.get_object(&self.config.bucket, key).await?;
+        let reg: NodeRegistration = serde_json::from_slice(&body)?;
         Ok(reg)
     }
 

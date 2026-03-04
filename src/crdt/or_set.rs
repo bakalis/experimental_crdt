@@ -1,7 +1,8 @@
 //! Observed-Remove Set (OR-Set).
 //!
 //! Each element is tagged with a `Dot` supplied by the engine.
-//! This implementation never touches a `DotVersionVector`.
+//! The engine passes its current `DotVersionVector` so causal metadata
+//! is populated directly — no post-hoc patching required.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -12,7 +13,7 @@ use tracing::info;
 
 use crate::common::{Counter, NodeId};
 use crate::crdt::{DeltaCrdt, DeltaContext};
-use crate::logical_clocks::dot_version_vector::Dot;
+use crate::logical_clocks::dot_version_vector::{Dot, DotVersionVector};
 
 // ── Op ──────────────────────────────────────────────────────────────────
 
@@ -26,16 +27,15 @@ pub enum OrSetOp<E> {
 
 /// Delta produced by one operation — also used as the full-state snapshot.
 ///
-/// The `context/dot_node/dot_counter` fields are left as defaults by the
-/// CRDT; the engine fills them in via `DeltaContext::set_causal_context`
-/// before sending.
+/// Causal metadata (`context`, `dot_node`, `dot_counter`) is populated
+/// directly by the CRDT methods that receive `&DotVersionVector`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrSetDelta<E> {
     /// New (element, dot) pairs being added.
     pub adds: Vec<(E, Dot)>,
     /// New tombstones: (removed_add_dot, remove_event_dot).
     pub tombstones: Vec<(Dot, Dot)>,
-    /// Sender's causal context for DVV merge — filled in by the engine.
+    /// Sender's causal context for DVV merge.
     pub context: HashMap<NodeId, Counter>,
     pub dot_node: NodeId,
     pub dot_counter: Counter,
@@ -51,17 +51,6 @@ where
             self.dot_node.clone(),
             self.dot_counter,
         )
-    }
-
-    fn set_causal_context(
-        &mut self,
-        context: HashMap<NodeId, Counter>,
-        node: NodeId,
-        counter: Counter,
-    ) {
-        self.context = context;
-        self.dot_node = node;
-        self.dot_counter = counter;
     }
 }
 
@@ -122,7 +111,7 @@ where
     type Op = OrSetOp<E>;
     type Delta = OrSetDelta<E>;
 
-    fn apply_local(&mut self, dot: Dot, op: OrSetOp<E>) -> OrSetDelta<E> {
+    fn apply_local(&mut self, dot: Dot, op: OrSetOp<E>, dvv: &DotVersionVector) -> OrSetDelta<E> {
         match op {
             OrSetOp::Add(elem) => {
                 self.adds
@@ -133,10 +122,9 @@ where
                 OrSetDelta {
                     adds: vec![(elem, dot)],
                     tombstones: vec![],
-                    // Engine fills these in before sending.
-                    context: HashMap::new(),
-                    dot_node: String::new(),
-                    dot_counter: 0,
+                    context: dvv.effective_map(),
+                    dot_node: dvv.dot.node_id.clone(),
+                    dot_counter: dvv.dot.counter,
                 }
             }
 
@@ -160,10 +148,9 @@ where
                 OrSetDelta {
                     adds: vec![],
                     tombstones: new_tombstones,
-                    // Engine fills these in before sending.
-                    context: HashMap::new(),
-                    dot_node: String::new(),
-                    dot_counter: 0,
+                    context: dvv.effective_map(),
+                    dot_node: dvv.dot.node_id.clone(),
+                    dot_counter: dvv.dot.counter,
                 }
             }
         }
@@ -206,7 +193,7 @@ where
         }
     }
 
-    fn full_state(&self) -> OrSetDelta<E> {
+    fn full_state(&self, dvv: &DotVersionVector) -> OrSetDelta<E> {
         let adds: Vec<(E, Dot)> = self
             .adds
             .iter()
@@ -224,14 +211,17 @@ where
         OrSetDelta {
             adds,
             tombstones,
-            // Engine fills these in before sending.
-            context: HashMap::new(),
-            dot_node: String::new(),
-            dot_counter: 0,
+            context: dvv.effective_map(),
+            dot_node: dvv.dot.node_id.clone(),
+            dot_counter: dvv.dot.counter,
         }
     }
 
-    fn delta_since(&self, remote_knowledge: &HashMap<NodeId, Counter>) -> OrSetDelta<E> {
+    fn delta_since(
+        &self,
+        remote_knowledge: &HashMap<NodeId, Counter>,
+        dvv: &DotVersionVector,
+    ) -> OrSetDelta<E> {
         // Include only add-dots the remote hasn't seen yet.
         let adds: Vec<(E, Dot)> = self
             .adds
@@ -262,10 +252,9 @@ where
         OrSetDelta {
             adds,
             tombstones,
-            // Engine fills these in before sending.
-            context: HashMap::new(),
-            dot_node: String::new(),
-            dot_counter: 0,
+            context: dvv.effective_map(),
+            dot_node: dvv.dot.node_id.clone(),
+            dot_counter: dvv.dot.counter,
         }
     }
 
@@ -301,7 +290,7 @@ mod tests {
     }
 
     /// Simulate what the engine does for a local operation:
-    /// mint a dot, apply to CRDT, then annotate with DVV context.
+    /// advance DVV, mint a dot, and apply to CRDT (which fills context from DVV).
     fn engine_apply_local(
         set: &mut OrSet<String>,
         dvv: &mut DotVersionVector,
@@ -309,13 +298,7 @@ mod tests {
     ) -> OrSetDelta<String> {
         dvv.event();
         let dot = Dot::new(dvv.dot.node_id.clone(), dvv.dot.counter);
-        let mut delta = set.apply_local(dot, op);
-        delta.set_causal_context(
-            dvv.effective_map(),
-            dvv.dot.node_id.clone(),
-            dvv.dot.counter,
-        );
-        delta
+        set.apply_local(dot, op, dvv)
     }
 
     /// Simulate what the engine does when merging a remote delta:
@@ -412,15 +395,11 @@ mod tests {
         // Remove "x" so full state includes a tombstone.
         engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Remove("x".to_string()));
 
-        let mut state = a_set.full_state();
-        state.set_causal_context(
-            a_dvv.effective_map(),
-            a_dvv.dot.node_id.clone(),
-            a_dvv.dot.counter,
-        );
+        let state = a_set.full_state(&a_dvv);
 
-        // Full state must carry tombstones.
+        // Full state must carry tombstones and correct causal metadata.
         assert!(!state.tombstones.is_empty());
+        assert_eq!(state.dot_counter, a_dvv.dot.counter);
 
         let state_bytes = OrSet::<String>::encode_delta(&state);
         let decoded = OrSet::<String>::decode_delta(&state_bytes).unwrap();
@@ -468,10 +447,10 @@ mod tests {
         engine_apply_local(&mut set, &mut dvv, OrSetOp::Remove("x".to_string()));
 
         let empty_knowledge = HashMap::new();
-        let delta = set.delta_since(&empty_knowledge);
+        let delta = set.delta_since(&empty_knowledge, &dvv);
 
         // A brand-new joiner must receive every add and every tombstone.
-        let full = set.full_state();
+        let full = set.full_state(&dvv);
         assert_eq!(delta.adds.len(), full.adds.len());
         assert_eq!(delta.tombstones.len(), full.tombstones.len());
     }
@@ -485,7 +464,7 @@ mod tests {
         engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("y".to_string()));
 
         // Remote already knows everything.
-        let delta = set.delta_since(&dvv.effective_map());
+        let delta = set.delta_since(&dvv.effective_map(), &dvv);
         assert!(delta.adds.is_empty());
         assert!(delta.tombstones.is_empty());
     }
@@ -501,7 +480,7 @@ mod tests {
         engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Add("y".to_string()));
 
         // B only knows about A:1 — should receive only the "y" add.
-        let delta = a_set.delta_since(&snapshot_knowledge);
+        let delta = a_set.delta_since(&snapshot_knowledge, &a_dvv);
         assert_eq!(delta.adds.len(), 1);
         assert_eq!(delta.adds[0].0, "y".to_string());
         assert!(delta.tombstones.is_empty());
@@ -520,7 +499,7 @@ mod tests {
         // A then removes "x" — B doesn't know yet.
         engine_apply_local(&mut a_set, &mut a_dvv, OrSetOp::Remove("x".to_string()));
 
-        let delta = a_set.delta_since(&b_knowledge);
+        let delta = a_set.delta_since(&b_knowledge, &a_dvv);
         assert!(delta.adds.is_empty(), "no new adds expected");
         assert_eq!(delta.tombstones.len(), 1, "B is missing the remove tombstone");
     }
@@ -542,12 +521,8 @@ mod tests {
         let b_knowledge = b_dvv.effective_map();
 
         // A responds with a minimal delta (equals full state here since B is empty).
-        let mut response = a_set.delta_since(&b_knowledge);
-        response.set_causal_context(
-            a_dvv.effective_map(),
-            a_dvv.dot.node_id.clone(),
-            a_dvv.dot.counter,
-        );
+        // Context is now populated directly by delta_since — no post-hoc patching.
+        let response = a_set.delta_since(&b_knowledge, &a_dvv);
 
         // B merges the response.
         engine_merge_delta(&mut b_set, &mut b_dvv, &response);
@@ -576,12 +551,7 @@ mod tests {
 
         // B pulls with its current knowledge.
         let b_knowledge = b_dvv.effective_map();
-        let mut response = a_set.delta_since(&b_knowledge);
-        response.set_causal_context(
-            a_dvv.effective_map(),
-            a_dvv.dot.node_id.clone(),
-            a_dvv.dot.counter,
-        );
+        let response = a_set.delta_since(&b_knowledge, &a_dvv);
 
         // The response must be minimal: 1 new add ("y") and 1 new tombstone.
         assert_eq!(response.adds.len(), 1);

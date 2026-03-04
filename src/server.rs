@@ -11,7 +11,7 @@ use crate::connection;
 use crate::crdt::or_set::{OrSet, OrSetOp};
 use crate::crdt_engine::CrdtEngine;
 use crate::discovery::{Discovery, DiscoveryConfig};
-use crate::dissemination::{PullPeriodic, SharedDissemination};
+use crate::dissemination::{PullPeriodic, PullRoundEngine, SharedDissemination};
 use crate::common::NodeId;
 use crate::peer_manager::PeerManager;
 use crate::proto::envelope::Payload;
@@ -93,7 +93,7 @@ impl Server {
         // ── Build dissemination strategy ─────────────────────────────
         // Pull-only: peers periodically request deltas from each other.
         let dissemination: SharedDissemination =
-            Arc::new(PullPeriodic::new(self.manager.clone()));
+            Arc::new(PullPeriodic::new(self.manager.clone(), std::time::Duration::from_secs(10)));
 
         // ── Build CRDT engine (OR-Set<String>) ───────────────────────
         let engine = CrdtEngine::<OrSet<String>>::new(
@@ -102,10 +102,11 @@ impl Server {
             OrSet::new(),
             dissemination.clone(),
             self.manager.clone(),
-            None, // pull_interval: None falls back to default 10 s for PullPeriodic
         );
 
-        let pull_handle = engine.start_pull_loop();
+        // The dissemination layer owns the pull loop.
+        let pull_handle = dissemination
+            .start_pull_loop(Arc::new(engine.clone()) as Arc<dyn PullRoundEngine>);
 
         // ── Optional client operation listener ───────────────────────
         let client_handle: Option<JoinHandle<()>> = if let Some(addr) = self.client_addr {

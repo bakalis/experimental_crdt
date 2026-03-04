@@ -6,14 +6,14 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 
+use async_trait::async_trait;
 use tokio::sync::Mutex;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 use crate::common::NodeId;
 use crate::crdt::{DeltaCrdt, DeltaContext};
-use crate::dissemination::SharedDissemination;
+use crate::dissemination::{PullRoundEngine, SharedDissemination};
 use crate::logical_clocks::dot_version_vector::{Dot, DotVersionVector};
 use crate::peer_manager::PeerManager;
 use crate::proto::{self, envelope::Payload, Envelope};
@@ -37,17 +37,10 @@ impl<C: DeltaCrdt> EngineInner<C> {
         self.dvv.event();
         let dot = Dot::new(self.dvv.dot.node_id.clone(), self.dvv.dot.counter);
 
-        // 2. Apply to CRDT.
-        let mut delta = self.crdt.apply_local(dot, op);
+        // 2. Apply to CRDT (populates causal metadata from the post-event DVV).
+        let delta = self.crdt.apply_local(dot, op, &self.dvv);
 
-        // 3. Annotate with full DVV effective map so receivers can merge.
-        delta.set_causal_context(
-            self.dvv.effective_map(),
-            self.dvv.dot.node_id.clone(),
-            self.dvv.dot.counter,
-        );
-
-        // 4. Push delta to peers.
+        // 3. Push delta to peers.
         let payload = C::encode_delta(&delta);
         self.dissemination
             .push_delta(&self.node_id, &self.crdt_id, payload, self.dvv.dot.counter)
@@ -117,12 +110,8 @@ impl<C: DeltaCrdt> EngineInner<C> {
             return;
         }
 
-        let mut state = self.crdt.delta_since(&remote_knowledge);
-        state.set_causal_context(
-            self.dvv.effective_map(),
-            self.dvv.dot.node_id.clone(),
-            self.dvv.dot.counter,
-        );
+        // Build a minimal delta with causal metadata populated directly.
+        let state = self.crdt.delta_since(&remote_knowledge, &self.dvv);
         let state_bytes = C::encode_delta(&state);
 
         let response = Envelope {
@@ -170,14 +159,12 @@ impl<C: DeltaCrdt> EngineInner<C> {
 /// `Clone` is cheap — it just clones the inner `Arc`.
 pub struct CrdtEngine<C: DeltaCrdt> {
     inner: Arc<Mutex<EngineInner<C>>>,
-    pull_interval: Option<Duration>,
 }
 
 impl<C: DeltaCrdt> Clone for CrdtEngine<C> {
     fn clone(&self) -> Self {
         CrdtEngine {
             inner: Arc::clone(&self.inner),
-            pull_interval: self.pull_interval,
         }
     }
 }
@@ -189,7 +176,6 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         crdt: C,
         dissemination: SharedDissemination,
         peer_manager: PeerManager,
-        pull_interval: Option<Duration>,
     ) -> Self {
         let dvv = DotVersionVector::new(node_id.clone());
         let inner = EngineInner {
@@ -202,7 +188,6 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         };
         CrdtEngine {
             inner: Arc::new(Mutex::new(inner)),
-            pull_interval,
         }
     }
     
@@ -234,37 +219,15 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             .await
             .server_message(&from_node, &crdt_id, &payload, hlc_ts);
     }
+}
 
-    /// Spawn a background pull-round loop (no-op if dissemination doesn't
-    /// support pull or `pull_interval` is not set).
-    pub fn start_pull_loop(&self) -> tokio::task::JoinHandle<()> {
-        let engine = self.clone();
-        tokio::spawn(async move {
-            let (supports_pull, interval) = {
-                let inner = engine.inner.lock().await;
-                (
-                    inner.dissemination.supports_pull(),
-                    engine.pull_interval.unwrap_or(Duration::from_secs(10)),
-                )
-            };
-
-            if !supports_pull {
-                return;
-            }
-
-            {
-                let inner = engine.inner.lock().await;
-                info!(
-                    node_id = %inner.node_id,
-                    crdt_id = %inner.crdt_id,
-                    "pull loop started (interval = {:?})", interval
-                );
-            }
-            let mut ticker = tokio::time::interval(interval);
-            loop {
-                ticker.tick().await;
-                engine.inner.lock().await.do_pull_round();
-            }
-        })
+#[async_trait]
+impl<C: DeltaCrdt> PullRoundEngine for CrdtEngine<C> {
+    /// Trigger one pull round — sends pull requests to all connected peers.
+    ///
+    /// Called by the dissemination layer's background ticker via
+    /// `DisseminationStrategy::start_pull_loop`.
+    async fn do_pull_round(&self) {
+        self.inner.lock().await.do_pull_round();
     }
 }

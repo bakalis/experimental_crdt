@@ -6,6 +6,7 @@ mod dissemination;       // ← NEW
 mod error;
 mod peer_manager;
 mod protocol;
+mod s3_client;
 mod server;
 mod common;
 mod proto;
