@@ -16,7 +16,7 @@ use tokio::time;
 use tracing::{debug, error, info, warn};
 
 use crate::error::{Error, Result};
-use crate::peer_manager::{PeerHandle, PeerManager};
+use crate::peer_registry::{PeerHandle, PeerRegistry};
 use crate::common::NodeId;
 use crate::proto::{self, envelope::Payload, Envelope};
 use crate::protocol;
@@ -38,7 +38,7 @@ const RECONNECT_MAX: Duration = Duration::from_secs(30);
 pub fn spawn_outbound(addr: SocketAddr,
     local_node_id: NodeId,
     local_node_name: NodeId,
-    manager: PeerManager,
+    manager: PeerRegistry,
     app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
@@ -80,7 +80,7 @@ pub async fn handle_inbound(
     remote_addr: SocketAddr,
     local_node_id: &str,
     local_node_name: &str,
-    manager: &PeerManager,
+    manager: &PeerRegistry,
     app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
 ) {
     match run_connection(
@@ -110,7 +110,7 @@ async fn run_connection(
     addr: SocketAddr,
     local_node_id: &str,
     local_node_name: &str,
-    manager: &PeerManager,
+    manager: &PeerRegistry,
     app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
     initiator: bool,
 ) -> Result<NodeId> {

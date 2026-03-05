@@ -1,10 +1,10 @@
 mod connection;
-mod crdt;                // ← NEW
-mod crdt_engine;         // ← NEW
+mod crdt;
+mod crdt_engine;
 mod discovery;
-mod dissemination;       // ← NEW
+mod dissemination;
 mod error;
-mod peer_manager;
+mod peer_registry;
 mod protocol;
 mod s3_client;
 mod server;

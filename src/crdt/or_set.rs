@@ -1,8 +1,6 @@
 //! Observed-Remove Set (OR-Set).
 //!
 //! Each element is tagged with a `Dot` supplied by the engine.
-//! The engine passes its current `DotVersionVector` so causal metadata
-//! is populated directly — no post-hoc patching required.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -25,15 +23,11 @@ pub enum OrSetOp<E> {
 
 // ── Delta ───────────────────────────────────────────────────────────────
 
-/// Delta produced by one operation — also used as the full-state snapshot.
-///
-/// Causal metadata (`context`, `dot_node`, `dot_counter`) is populated
-/// directly by the CRDT methods that receive `&DotVersionVector`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrSetDelta<E> {
-    /// New (element, dot) pairs being added.
+    /// Missing (element, dot) pairs being added.
     pub adds: Vec<(E, Dot)>,
-    /// New tombstones: (removed_add_dot, remove_event_dot).
+    /// Missing tombstones: (removed_add_dot, remove_event_dot).
     pub tombstones: Vec<(Dot, Dot)>,
     /// Sender's causal context for DVV merge.
     pub context: HashMap<NodeId, Counter>,

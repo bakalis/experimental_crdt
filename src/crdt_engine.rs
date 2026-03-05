@@ -15,7 +15,7 @@ use crate::common::NodeId;
 use crate::crdt::{DeltaCrdt, DeltaContext};
 use crate::dissemination::{PullRoundEngine, SharedDissemination};
 use crate::logical_clocks::dot_version_vector::{Dot, DotVersionVector};
-use crate::peer_manager::PeerManager;
+use crate::peer_registry::PeerRegistry;
 use crate::proto::{self, envelope::Payload, Envelope};
 
 // ── Inner state (behind the mutex) ─────────────────────────────────────
@@ -26,7 +26,7 @@ struct EngineInner<C: DeltaCrdt> {
     crdt: C,
     dvv: DotVersionVector,
     dissemination: SharedDissemination,
-    peer_manager: PeerManager,
+    peer_registry: PeerRegistry,
 }
 
 impl<C: DeltaCrdt> EngineInner<C> {
@@ -123,7 +123,7 @@ impl<C: DeltaCrdt> EngineInner<C> {
             })),
         };
 
-        if let Some((_, handle)) = self.peer_manager.get(from_node) {
+        if let Some((_, handle)) = self.peer_registry.get(from_node) {
             if let Err(e) = handle.tx.try_send(response) {
                 warn!(%from_node, %e, "failed to send pull response");
             }
@@ -132,7 +132,7 @@ impl<C: DeltaCrdt> EngineInner<C> {
 
     fn do_pull_round(&self) {
         let our_knowledge = self.dvv.effective_map();
-        let peer_ids = self.peer_manager.peer_ids();
+        let peer_ids = self.peer_registry.peer_ids();
 
         for peer_id in &peer_ids {
             if let Some(envelope) = self.dissemination.build_pull_request(
@@ -140,7 +140,7 @@ impl<C: DeltaCrdt> EngineInner<C> {
                 &self.crdt_id,
                 &our_knowledge,
             ) {
-                if let Some((_, handle)) = self.peer_manager.get(peer_id) {
+                if let Some((_, handle)) = self.peer_registry.get(peer_id) {
                     if let Err(e) = handle.tx.try_send(envelope.clone()) {
                         warn!(%peer_id, %e, "failed to send pull request");
                     }
@@ -175,7 +175,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         crdt_id: String,
         crdt: C,
         dissemination: SharedDissemination,
-        peer_manager: PeerManager,
+        peer_registry: PeerRegistry,
     ) -> Self {
         let dvv = DotVersionVector::new(node_id.clone());
         let inner = EngineInner {
@@ -184,7 +184,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             crdt,
             dvv,
             dissemination,
-            peer_manager,
+            peer_registry,
         };
         CrdtEngine {
             inner: Arc::new(Mutex::new(inner)),

@@ -24,11 +24,11 @@ pub struct PeerHandle {
 
 /// Concurrent, clonable registry of all active peers.
 #[derive(Debug, Clone)]
-pub struct PeerManager {
+pub struct PeerRegistry {
     peers: Arc<DashMap<NodeId, (SocketAddr, PeerHandle)>>,
 }
 
-impl PeerManager {
+impl PeerRegistry {
     pub fn new() -> Self {
         Self {
             peers: Arc::new(DashMap::new()),

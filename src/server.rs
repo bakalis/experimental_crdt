@@ -13,7 +13,7 @@ use crate::crdt_engine::CrdtEngine;
 use crate::discovery::{Discovery, DiscoveryConfig};
 use crate::dissemination::{PullPeriodic, PullRoundEngine, SharedDissemination};
 use crate::common::NodeId;
-use crate::peer_manager::PeerManager;
+use crate::peer_registry::PeerRegistry;
 use crate::proto::envelope::Payload;
 use crate::proto::Envelope;
 
@@ -25,7 +25,7 @@ type OutboundTasks = HashMap<NodeId, (SocketAddr, JoinHandle<()>)>;
 pub struct PeerConnector {
     node_id: String,
     node_name: String,
-    manager: PeerManager,
+    manager: PeerRegistry,
     app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
     outbound_tasks: Arc<Mutex<OutboundTasks>>,
 }
@@ -65,7 +65,7 @@ pub struct Server {
     /// Optional address for the client operation listener (JSON-over-TCP).
     advertise_addr: SocketAddr,
     client_addr: Option<SocketAddr>,
-    manager: PeerManager,
+    manager: PeerRegistry,
     outbound_tasks: Arc<Mutex<OutboundTasks>>,
 }
 
@@ -82,7 +82,7 @@ impl Server {
             listen_addr,
             advertise_addr,
             client_addr,
-            manager: PeerManager::new(),
+            manager: PeerRegistry::new(),
             outbound_tasks: Arc::new(Mutex::new(OutboundTasks::new())),
         }
     }

@@ -1,16 +1,11 @@
 //! S3 client wrapper.
-//!
-//! Encapsulates AWS SDK client construction and the CRUD operations used
-//! by the discovery layer, so that `discovery.rs` stays free of raw SDK
-//! calls.
 
 use aws_credential_types::Credentials;
 use aws_sdk_s3::config::{BehaviorVersion, Region};
 use aws_sdk_s3::Client as AwsS3Client;
 use tracing::{debug, info};
 
-/// Thin wrapper around [`aws_sdk_s3::Client`] that bundles construction and
-/// the four S3 operations the discovery layer needs.
+/// Thin wrapper around [`aws_sdk_s3::Client`] 
 pub struct S3Client {
     inner: AwsS3Client,
 }

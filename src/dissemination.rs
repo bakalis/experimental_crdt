@@ -12,7 +12,7 @@ use tokio::task::JoinHandle;
 use tracing::{info, debug, warn};
 
 use crate::common::NodeId;
-use crate::peer_manager::PeerManager;
+use crate::peer_registry::PeerRegistry;
 use crate::proto::{self, envelope::Payload, Envelope};
 
 // ── Pull-round callback trait ───────────────────────────────────────────
@@ -66,12 +66,12 @@ pub type SharedDissemination = Arc<dyn DisseminationStrategy>;
 /// Eagerly pushes every delta to all connected peers.
 /// Pull is not used; `start_pull_loop` returns a no-op task.
 pub struct PushBroadcast {
-    peer_manager: PeerManager,
+    peer_registry: PeerRegistry,
 }
 
 impl PushBroadcast {
-    pub fn new(peer_manager: PeerManager) -> Self {
-        Self { peer_manager }
+    pub fn new(peer_registry: PeerRegistry) -> Self {
+        Self { peer_registry }
     }
 }
 
@@ -93,8 +93,8 @@ impl DisseminationStrategy for PushBroadcast {
             })),
         };
 
-        info!(crdt_id, peers = self.peer_manager.len(), "push-broadcast: sending delta");
-        self.peer_manager.broadcast(envelope).await;
+        info!(crdt_id, peers = self.peer_registry.len(), "push-broadcast: sending delta");
+        self.peer_registry.broadcast(envelope).await;
     }
     // start_pull_loop defaults to no-op.
 }
@@ -107,13 +107,13 @@ impl DisseminationStrategy for PushBroadcast {
 /// Pull requests are sent as `CrdtOp` with `hlc_ts = 0` as a sentinel.
 /// The `payload` contains the serialised knowledge map.
 pub struct PullPeriodic {
-    peer_manager: PeerManager,
+    peer_registry: PeerRegistry,
     interval: Duration,
 }
 
 impl PullPeriodic {
-    pub fn new(peer_manager: PeerManager, interval: Duration) -> Self {
-        Self { peer_manager, interval }
+    pub fn new(peer_registry: PeerRegistry, interval: Duration) -> Self {
+        Self { peer_registry, interval }
     }
 }
 
@@ -168,13 +168,13 @@ impl DisseminationStrategy for PullPeriodic {
 /// for anti-entropy. Most robust: push gives low latency, pull repairs lost
 /// messages.
 pub struct PushPull {
-    peer_manager: PeerManager,
+    peer_registry: PeerRegistry,
     interval: Duration,
 }
 
 impl PushPull {
-    pub fn new(peer_manager: PeerManager, interval: Duration) -> Self {
-        Self { peer_manager, interval }
+    pub fn new(peer_registry: PeerRegistry, interval: Duration) -> Self {
+        Self { peer_registry, interval }
     }
 }
 
@@ -196,8 +196,8 @@ impl DisseminationStrategy for PushPull {
             })),
         };
 
-        debug!(crdt_id, peers = self.peer_manager.len(), "push-pull: pushing delta");
-        self.peer_manager.broadcast(envelope).await;
+        debug!(crdt_id, peers = self.peer_registry.len(), "push-pull: pushing delta");
+        self.peer_registry.broadcast(envelope).await;
     }
 
     fn build_pull_request(

@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
 
-use crate::peer_manager::PeerManager;
+use crate::peer_registry::PeerRegistry;
 use crate::s3_client::S3Client;
 use crate::server::PeerConnector;
 use crate::common::NodeId;
@@ -161,7 +161,7 @@ impl Discovery {
 
     pub async fn run_discovery_loop(
         self,
-        manager: PeerManager,
+        registry: PeerRegistry,
         connector: PeerConnector,
     ) {
         let mut interval = tokio::time::interval(self.config.poll_interval);
@@ -188,7 +188,7 @@ impl Discovery {
                 .iter()
                 .map(|r| (r.node_id.clone(), r.clone()))
                 .collect(); 
-            let current: HashSet<NodeId> = manager
+            let current: HashSet<NodeId> = registry
                 .peer_ids().into_iter().collect();
 
             let desired_ids: HashSet<NodeId> = desired.keys().cloned().collect();
@@ -212,7 +212,7 @@ impl Discovery {
 
             debug!(
                 live = desired.len(),
-                connected = manager.len(),
+                connected = registry.len(),
                 "discovery reconciliation complete"
             );
         }
