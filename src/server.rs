@@ -25,7 +25,7 @@ type OutboundTasks = HashMap<NodeId, (SocketAddr, JoinHandle<()>)>;
 pub struct PeerConnector {
     node_id: String,
     node_name: String,
-    manager: PeerRegistry,
+    registry: PeerRegistry,
     app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
     outbound_tasks: Arc<Mutex<OutboundTasks>>,
 }
@@ -40,7 +40,7 @@ impl PeerConnector {
             addr,
             self.node_id.clone(),
             self.node_name.clone(),
-            self.manager.clone(),
+            self.registry.clone(),
             self.app_tx.clone(),
         );
         tasks.insert(node_id, (addr, handle));
@@ -52,7 +52,7 @@ impl PeerConnector {
             handle.abort();
             info!(%addr, "outbound task aborted");
         }
-        self.manager.remove(&node_id);
+        self.registry.remove(&node_id);
     }
 }
 
@@ -65,7 +65,7 @@ pub struct Server {
     /// Optional address for the client operation listener (JSON-over-TCP).
     advertise_addr: SocketAddr,
     client_addr: Option<SocketAddr>,
-    manager: PeerRegistry,
+    registry: PeerRegistry,
     outbound_tasks: Arc<Mutex<OutboundTasks>>,
 }
 
@@ -82,7 +82,7 @@ impl Server {
             listen_addr,
             advertise_addr,
             client_addr,
-            manager: PeerRegistry::new(),
+            registry: PeerRegistry::new(),
             outbound_tasks: Arc::new(Mutex::new(OutboundTasks::new())),
         }
     }
@@ -93,7 +93,7 @@ impl Server {
         // ── Build dissemination strategy ─────────────────────────────
         // Pull-only: peers periodically request deltas from each other.
         let dissemination: SharedDissemination =
-            Arc::new(PullPeriodic::new(self.manager.clone(), std::time::Duration::from_secs(10)));
+            Arc::new(PullPeriodic::new(self.registry.clone(), std::time::Duration::from_secs(10)));
 
         // ── Build CRDT engine (OR-Set<String>) ───────────────────────
         let engine = CrdtEngine::<OrSet<String>>::new(
@@ -101,7 +101,7 @@ impl Server {
             "default-orset".to_string(),
             OrSet::new(),
             dissemination.clone(),
-            self.manager.clone(),
+            self.registry.clone(),
         );
 
         // The dissemination layer owns the pull loop.
@@ -163,7 +163,7 @@ impl Server {
         let connector = PeerConnector {
             node_id: self.node_id.clone(),
             node_name: self.node_name.clone(),
-            manager: self.manager.clone(),
+            registry: self.registry.clone(),
             app_tx: app_tx.clone(),
             outbound_tasks: Arc::clone(&self.outbound_tasks),
         };
@@ -179,11 +179,11 @@ impl Server {
         .await?;
 
         // ── Spawn discovery reconciliation loop ──────────────────────
-        let disc_manager = self.manager.clone();
+        let disc_registry = self.registry.clone();
         let disc_connector = connector.clone();
         let discovery_handle = tokio::spawn(async move {
             discovery
-                .run_discovery_loop(disc_manager, disc_connector)
+                .run_discovery_loop(disc_registry, disc_connector)
                 .await;
         });
 
@@ -206,7 +206,7 @@ impl Server {
                     match accept_result {
                         Ok((stream, remote_addr)) => {
                             info!(%remote_addr, "accepted inbound connection");
-                            let mgr = self.manager.clone();
+                            let mgr = self.registry.clone();
                             let nid = self.node_id.clone();
                             let nname = self.node_name.clone();
                             let tx = app_tx.clone();
@@ -241,8 +241,7 @@ impl Server {
                     // Route CRDT operations to the engine.
                     match envelope.payload {
                         Some(Payload::CrdtOp(crdt_op)) => {
-                            engine
-                                .server_message(
+                            engine.server_message(
                                     crdt_op.origin_node_id,
                                     crdt_op.crdt_id,
                                     crdt_op.payload,

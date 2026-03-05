@@ -24,8 +24,6 @@ use crate::protocol;
 // ── tunables ────────────────────────────────────────────────────────────
 
 const CHANNEL_BUF: usize = 256;
-// const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
-// const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(15);
 const RECONNECT_BASE: Duration = Duration::from_secs(1);
 const RECONNECT_MAX: Duration = Duration::from_secs(30);
 
@@ -38,7 +36,7 @@ const RECONNECT_MAX: Duration = Duration::from_secs(30);
 pub fn spawn_outbound(addr: SocketAddr,
     local_node_id: NodeId,
     local_node_name: NodeId,
-    manager: PeerRegistry,
+    registry: PeerRegistry,
     app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
@@ -54,7 +52,7 @@ pub fn spawn_outbound(addr: SocketAddr,
                         addr,
                         &local_node_id,
                         &local_node_name,
-                        &manager,
+                        &registry,
                         &app_tx,
                         true, // we are the initiator
                     )
@@ -80,7 +78,7 @@ pub async fn handle_inbound(
     remote_addr: SocketAddr,
     local_node_id: &str,
     local_node_name: &str,
-    manager: &PeerRegistry,
+    registry: &PeerRegistry,
     app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
 ) {
     match run_connection(
@@ -88,7 +86,7 @@ pub async fn handle_inbound(
         remote_addr,
         local_node_id,
         local_node_name,
-        manager,
+        registry,
         app_tx,
         false,
     )
@@ -110,7 +108,7 @@ async fn run_connection(
     addr: SocketAddr,
     local_node_id: &str,
     local_node_name: &str,
-    manager: &PeerRegistry,
+    registry: &PeerRegistry,
     app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
     initiator: bool,
 ) -> Result<NodeId> {
@@ -129,9 +127,9 @@ async fn run_connection(
     .await?;
     info!(%addr, remote_node_id, "handshake complete");
 
-    // ── register in peer manager ────────────────────────────────────
+    // ── register in peer registry ────────────────────────────────────
     let (tx, rx) = mpsc::channel::<Envelope>(CHANNEL_BUF);
-    manager.insert(
+    registry.insert(
         remote_node_id.clone(),
         addr,
         PeerHandle {
