@@ -5,13 +5,24 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
+use tokio::task::JoinHandle;
 use tracing::{info, debug, warn};
 
 use crate::common::NodeId;
-use crate::peer_manager::PeerManager;
+use crate::peer_registry::PeerRegistry;
 use crate::proto::{self, envelope::Payload, Envelope};
+
+// ── Pull-round callback trait ───────────────────────────────────────────
+
+/// Implemented by `CrdtEngine` so dissemination strategies can trigger a
+/// pull round without knowing the concrete engine type.
+#[async_trait]
+pub trait PullRoundEngine: Send + Sync + 'static {
+    async fn do_pull_round(&self);
+}
 
 // ── Trait ───────────────────────────────────────────────────────────────
 
@@ -27,9 +38,6 @@ pub trait DisseminationStrategy: Send + Sync + 'static {
         dot_counter: u64,
     );
 
-    /// Whether this strategy uses periodic pull rounds.
-    fn supports_pull(&self) -> bool { false }
-
     /// Build a pull-request message containing our knowledge vector.
     /// Returns `None` if pull is not supported.
     fn build_pull_request(
@@ -38,6 +46,17 @@ pub trait DisseminationStrategy: Send + Sync + 'static {
         _crdt_id: &str,
         _our_knowledge: &HashMap<NodeId, u64>,
     ) -> Option<Envelope> { None }
+
+    /// Spawn a background pull-round loop.
+    ///
+    /// `PushBroadcast` returns a no-op task; `PullPeriodic` and `PushPull`
+    /// spawn a ticker that calls `engine.do_pull_round()` at each interval.
+    fn start_pull_loop(
+        &self,
+        _engine: Arc<dyn PullRoundEngine>,
+    ) -> JoinHandle<()> {
+        tokio::spawn(async {})
+    }
 }
 
 pub type SharedDissemination = Arc<dyn DisseminationStrategy>;
@@ -45,13 +64,14 @@ pub type SharedDissemination = Arc<dyn DisseminationStrategy>;
 // ── Push (Broadcast) ────────────────────────────────────────────────────
 
 /// Eagerly pushes every delta to all connected peers.
+/// Pull is not used; `start_pull_loop` returns a no-op task.
 pub struct PushBroadcast {
-    peer_manager: PeerManager,
+    peer_registry: PeerRegistry,
 }
 
 impl PushBroadcast {
-    pub fn new(peer_manager: PeerManager) -> Self {
-        Self { peer_manager }
+    pub fn new(peer_registry: PeerRegistry) -> Self {
+        Self { peer_registry }
     }
 }
 
@@ -73,26 +93,27 @@ impl DisseminationStrategy for PushBroadcast {
             })),
         };
 
-        info!(crdt_id, peers = self.peer_manager.len(), "push-broadcast: sending delta");
-        self.peer_manager.broadcast(envelope).await;
+        info!(crdt_id, peers = self.peer_registry.len(), "push-broadcast: sending delta");
+        self.peer_registry.broadcast(envelope).await;
     }
+    // start_pull_loop defaults to no-op.
 }
 
-// ── Pull (Periodic) ────────��───────────────────────────────────────────
+// ── Pull (Periodic) ─────────────────────────────────────────────────────
 
-/// Never pushes. The engine periodically sends pull requests to peers,
-/// who respond with deltas computed via `dvv.delta_since()`.
+/// Never pushes. Spawns a background ticker via `start_pull_loop` that
+/// periodically sends pull requests to peers.
 ///
 /// Pull requests are sent as `CrdtOp` with `hlc_ts = 0` as a sentinel.
 /// The `payload` contains the serialised knowledge map.
 pub struct PullPeriodic {
-    #[allow(dead_code)]
-    peer_manager: PeerManager,
+    peer_registry: PeerRegistry,
+    interval: Duration,
 }
 
 impl PullPeriodic {
-    pub fn new(peer_manager: PeerManager) -> Self {
-        Self { peer_manager }
+    pub fn new(peer_registry: PeerRegistry, interval: Duration) -> Self {
+        Self { peer_registry, interval }
     }
 }
 
@@ -108,8 +129,6 @@ impl DisseminationStrategy for PullPeriodic {
         // Pull-only: do not push on mutation.
         debug!("pull-periodic: skipping push (pull-only mode)");
     }
-
-    fn supports_pull(&self) -> bool { true }
 
     fn build_pull_request(
         &self,
@@ -129,19 +148,33 @@ impl DisseminationStrategy for PullPeriodic {
             })),
         })
     }
+
+    fn start_pull_loop(&self, engine: Arc<dyn PullRoundEngine>) -> JoinHandle<()> {
+        let interval = self.interval;
+        tokio::spawn(async move {
+            info!("pull-periodic: pull loop started (interval = {:?})", interval);
+            let mut ticker = tokio::time::interval(interval);
+            loop {
+                ticker.tick().await;
+                engine.do_pull_round().await;
+            }
+        })
+    }
 }
 
 // ── Push-Pull ───────────────────────────────────────────────────────────
 
-/// Pushes eagerly on mutation AND supports periodic pull for anti-entropy.
-/// Most robust: push gives low latency, pull repairs lost messages.
+/// Pushes eagerly on mutation AND spawns a pull ticker via `start_pull_loop`
+/// for anti-entropy. Most robust: push gives low latency, pull repairs lost
+/// messages.
 pub struct PushPull {
-    peer_manager: PeerManager,
+    peer_registry: PeerRegistry,
+    interval: Duration,
 }
 
 impl PushPull {
-    pub fn new(peer_manager: PeerManager) -> Self {
-        Self { peer_manager }
+    pub fn new(peer_registry: PeerRegistry, interval: Duration) -> Self {
+        Self { peer_registry, interval }
     }
 }
 
@@ -163,11 +196,9 @@ impl DisseminationStrategy for PushPull {
             })),
         };
 
-        debug!(crdt_id, peers = self.peer_manager.len(), "push-pull: pushing delta");
-        self.peer_manager.broadcast(envelope).await;
+        debug!(crdt_id, peers = self.peer_registry.len(), "push-pull: pushing delta");
+        self.peer_registry.broadcast(envelope).await;
     }
-
-    fn supports_pull(&self) -> bool { true }
 
     fn build_pull_request(
         &self,
@@ -185,6 +216,18 @@ impl DisseminationStrategy for PushPull {
                 hlc_ts: 0,
                 origin_node_id: node_id.clone(),
             })),
+        })
+    }
+
+    fn start_pull_loop(&self, engine: Arc<dyn PullRoundEngine>) -> JoinHandle<()> {
+        let interval = self.interval;
+        tokio::spawn(async move {
+            info!("push-pull: pull loop started (interval = {:?})", interval);
+            let mut ticker = tokio::time::interval(interval);
+            loop {
+                ticker.tick().await;
+                engine.do_pull_round().await;
+            }
         })
     }
 }
