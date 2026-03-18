@@ -4,6 +4,7 @@ mod crdt_engine;
 mod discovery;
 mod dissemination;
 mod error;
+mod gc;
 mod peer_registry;
 mod protocol;
 mod s3_client;

@@ -120,6 +120,7 @@ impl<C: DeltaCrdt> EngineInner<C> {
                 payload: state_bytes,
                 hlc_ts: self.dvv.dot.counter,
                 origin_node_id: self.node_id.clone(),
+                gc_epoch: 0, // TODO: populate with actual GC epoch
             })),
         };
 

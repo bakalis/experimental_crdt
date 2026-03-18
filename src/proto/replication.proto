@@ -10,6 +10,7 @@ message Envelope {
     Heartbeat    heartbeat     = 2;
     HeartbeatAck heartbeat_ack = 3;
     CrdtOp       crdt_op       = 4;
+    EpochAnnounce epoch_announce = 5;
   }
 }
 
@@ -48,4 +49,15 @@ message CrdtOp {
   uint64 hlc_ts  = 3;
   // Originating node so we can break ties / attribute ops.
   string origin_node_id = 4;
+  // GC epoch when this operation was created (0 if not applicable).
+  uint64 gc_epoch = 5;
+}
+
+// ----- Garbage Collection Epoch Management --------------------------------
+
+message EpochAnnounce {
+  // The current GC epoch of the sending node.
+  uint64 epoch = 1;
+  // Node ID of the sender.
+  string node_id = 2;
 }

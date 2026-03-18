@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use tokio::task::JoinHandle;
-use tracing::{info, debug, warn};
+use tracing::{info, debug};
 
 use crate::common::NodeId;
 use crate::peer_registry::PeerRegistry;
@@ -90,6 +90,7 @@ impl DisseminationStrategy for PushBroadcast {
                 payload,
                 hlc_ts: dot_counter,
                 origin_node_id: origin_node_id.clone(),
+                gc_epoch: 0, // TODO: populate with actual GC epoch
             })),
         };
 
@@ -145,6 +146,7 @@ impl DisseminationStrategy for PullPeriodic {
                 payload: knowledge_bytes,
                 hlc_ts: 0, // sentinel: this is a pull request
                 origin_node_id: node_id.clone(),
+                gc_epoch: 0,
             })),
         })
     }
@@ -193,6 +195,7 @@ impl DisseminationStrategy for PushPull {
                 payload,
                 hlc_ts: dot_counter,
                 origin_node_id: origin_node_id.clone(),
+                gc_epoch: 0, // TODO: populate with actual GC epoch
             })),
         };
 
@@ -215,6 +218,7 @@ impl DisseminationStrategy for PushPull {
                 payload: knowledge_bytes,
                 hlc_ts: 0,
                 origin_node_id: node_id.clone(),
+                gc_epoch: 0,
             })),
         })
     }

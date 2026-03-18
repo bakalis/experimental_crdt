@@ -265,7 +265,7 @@ async fn dispatch(
         Some(Payload::HeartbeatAck(ack)) => {
             debug!(%addr, seq = ack.seq, "heartbeat ack");
         }
-        Some(Payload::CrdtOp(_)) | Some(Payload::Handshake(_)) => {
+        Some(Payload::CrdtOp(_)) | Some(Payload::Handshake(_)) | Some(Payload::EpochAnnounce(_)) => {
             // Forward to the application layer for processing.
             let _ = app_tx.send((addr, envelope)).await;
         }
