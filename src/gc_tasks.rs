@@ -1,6 +1,5 @@
 //! Background GC tasks for epoch advancement and tombstone collection.
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::task::JoinHandle;
@@ -8,7 +7,7 @@ use tracing::{debug, info};
 
 use crate::crdt::DeltaCrdt;
 use crate::crdt_engine::CrdtEngine;
-use crate::gc::{GcConfig, GcCoordinator};
+use crate::gc::GcConfig;
 use crate::peer_registry::PeerRegistry;
 use crate::proto::{self, envelope::Payload, Envelope};
 
@@ -52,9 +51,6 @@ fn start_epoch_advancement_task<C: DeltaCrdt>(
 
             let gc_coordinator = engine.gc_coordinator().await;
             let new_epoch = gc_coordinator.advance_epoch().await;
-
-            // Get node_id snapshot from coordinator
-            let peer_snapshot = gc_coordinator.peer_epoch_snapshot();
 
             // Broadcast epoch announcement to all peers
             let announcement = Envelope {
