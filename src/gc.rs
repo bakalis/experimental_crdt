@@ -81,7 +81,7 @@ impl PeerGcInfo {
 #[derive(Debug)]
 pub struct GcCoordinator {
     /// This node's ID.
-    node_id: NodeId,
+    pub node_id: NodeId,
     /// Current epoch for this replica.
     current_epoch: Arc<Mutex<Epoch>>,
     /// Tracks the latest acknowledged epoch for each peer.
@@ -177,8 +177,15 @@ impl GcCoordinator {
             return None;
         }
 
-        // If we have no peers, we can collect up to current - safety margin.
-        let min_peer = self.min_peer_epoch().unwrap_or(current);
+        // If we have no peers, we can safely collect up to current - SAFETY_MARGIN.
+        // This is safe because we're the only node, so we know all tombstones
+        // created before current - SAFETY_MARGIN are no longer needed.
+        if self.peer_epochs.is_empty() {
+            return Some(current - EPOCH_SAFETY_MARGIN);
+        }
+
+        // With peers, we can only collect when all peers have acknowledged an epoch.
+        let min_peer = self.min_peer_epoch().unwrap(); // Safe: we checked is_empty above
 
         // Safe to collect if:
         // 1. All peers have acknowledged epoch E

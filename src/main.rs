@@ -5,6 +5,7 @@ mod discovery;
 mod dissemination;
 mod error;
 mod gc;
+mod gc_tasks;
 mod peer_registry;
 mod protocol;
 mod s3_client;
