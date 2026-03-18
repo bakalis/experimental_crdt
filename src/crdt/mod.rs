@@ -63,6 +63,12 @@ pub trait DeltaCrdt: Send + Sync + 'static {
     // TODO: NOT GENERIC: need to be refactored after testing is over
     fn get_random_element(&self) -> Option<String>;
 
+    /// Garbage collect tombstones that are safe to remove.
+    ///
+    /// Takes the safe collection epoch (if any) and removes tombstones
+    /// that were created before or at that epoch.
+    fn garbage_collect(&mut self, safe_epoch: Option<u64>) -> usize;
+
     // ── Serialisation ───────────────────────────────────────────────────
 
     fn encode_delta(delta: &Self::Delta) -> Vec<u8>;

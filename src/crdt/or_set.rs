@@ -252,6 +252,15 @@ where
         }
     }
 
+    fn garbage_collect(&mut self, _safe_epoch: Option<u64>) -> usize {
+        // TODO: Implement epoch-based garbage collection.
+        // For now, this is a no-op. Full implementation would:
+        // 1. Track creation epoch for each tombstone
+        // 2. Remove tombstones created at or before safe_epoch
+        // 3. Return the number of tombstones collected
+        0
+    }
+
     fn encode_delta(delta: &OrSetDelta<E>) -> Vec<u8> {
         serde_json::to_vec(delta).expect("delta serialisation")
     }

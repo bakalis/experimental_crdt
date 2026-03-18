@@ -9,11 +9,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::sync::Mutex;
-use tracing::{debug, warn};
+use tracing::{debug, warn, info};
 
 use crate::common::NodeId;
 use crate::crdt::{DeltaCrdt, DeltaContext};
 use crate::dissemination::{PullRoundEngine, SharedDissemination};
+use crate::gc::GcCoordinator;
 use crate::logical_clocks::dot_version_vector::{Dot, DotVersionVector};
 use crate::peer_registry::PeerRegistry;
 use crate::proto::{self, envelope::Payload, Envelope};
@@ -27,6 +28,7 @@ struct EngineInner<C: DeltaCrdt> {
     dvv: DotVersionVector,
     dissemination: SharedDissemination,
     peer_registry: PeerRegistry,
+    gc_coordinator: Arc<GcCoordinator>,
 }
 
 impl<C: DeltaCrdt> EngineInner<C> {
@@ -179,6 +181,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         peer_registry: PeerRegistry,
     ) -> Self {
         let dvv = DotVersionVector::new(node_id.clone());
+        let gc_coordinator = Arc::new(GcCoordinator::new(node_id.clone()));
         let inner = EngineInner {
             node_id,
             crdt_id,
@@ -186,6 +189,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             dvv,
             dissemination,
             peer_registry,
+            gc_coordinator,
         };
         CrdtEngine {
             inner: Arc::new(Mutex::new(inner)),
@@ -219,6 +223,24 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             .lock()
             .await
             .server_message(&from_node, &crdt_id, &payload, hlc_ts);
+    }
+
+    /// Handle an epoch announcement from a peer.
+    pub async fn handle_epoch_announce(&self, peer_id: NodeId, epoch: u64) {
+        let inner = self.inner.lock().await;
+        inner.gc_coordinator.record_peer_epoch(&peer_id, epoch);
+        info!(
+            node_id = %inner.node_id,
+            peer_id = %peer_id,
+            epoch = epoch,
+            "received epoch announcement from peer"
+        );
+    }
+
+    /// Get a reference to the GC coordinator for this engine.
+    pub async fn gc_coordinator(&self) -> Arc<GcCoordinator> {
+        let inner = self.inner.lock().await;
+        Arc::clone(&inner.gc_coordinator)
     }
 }
 

@@ -249,6 +249,12 @@ impl Server {
                                 )
                                 .await;
                         }
+                        Some(Payload::EpochAnnounce(epoch_msg)) => {
+                            engine.handle_epoch_announce(
+                                epoch_msg.node_id,
+                                epoch_msg.epoch,
+                            ).await;
+                        }
                         other => {
                             info!(%addr, ?other, "app received non-CRDT message");
                         }
