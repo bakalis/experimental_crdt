@@ -1,8 +1,13 @@
 mod connection;
+mod crdt;
+mod crdt_engine;
 mod discovery;
+mod dissemination;
 mod error;
-mod peer_manager;
+mod gc;
+mod peer_registry;
 mod protocol;
+mod s3_client;
 mod server;
 mod common;
 mod proto;
@@ -21,8 +26,6 @@ struct Cli {
     listen: SocketAddr,
 
     /// The address that *other* nodes should use to reach us.
-    /// Defaults to the listen address, but in Docker / K8s you
-    /// typically need to advertise a different IP.
     #[arg(long)]
     advertise: Option<SocketAddr>,
 
@@ -60,6 +63,27 @@ struct Cli {
     /// is considered stale and ignored.
     #[arg(long, default_value = "30")]
     registration_ttl_secs: u64,
+
+    /// Optional address for the client operation listener (protobuf-over-TCP).
+    /// Clients connect and send length-prefixed protobuf `ProtoClientCommand` messages.
+    #[arg(long)]
+    client_addr: Option<SocketAddr>,
+
+    /// Prefix under the configured S3 bucket for GC protocol objects.
+    #[arg(long, default_value = "gc")]
+    gc_prefix: String,
+
+    /// Interval in seconds for periodic GC initiation attempts.
+    #[arg(long, default_value = "30")]
+    gc_initiate_interval_secs: u64,
+
+    /// Interval in seconds for periodic ObserveEpochChange + clock publish.
+    #[arg(long, default_value = "10")]
+    gc_observe_interval_secs: u64,
+
+    /// Interval in seconds for periodic cleanup of old epoch entries.
+    #[arg(long, default_value = "60")]
+    gc_cleanup_interval_secs: u64,
 }
 
 #[tokio::main]
@@ -87,6 +111,15 @@ async fn main() -> anyhow::Result<()> {
         registration_ttl: std::time::Duration::from_secs(cli.registration_ttl_secs),
     };
 
-    let server = server::Server::new(cli.listen, advertise_addr, &node_name);
+    let server = server::Server::new(
+        cli.listen,
+        advertise_addr,
+        &node_name,
+        cli.client_addr,
+        cli.gc_prefix,
+        std::time::Duration::from_secs(cli.gc_initiate_interval_secs),
+        std::time::Duration::from_secs(cli.gc_observe_interval_secs),
+        std::time::Duration::from_secs(cli.gc_cleanup_interval_secs),
+    );
     server.run(discovery_cfg).await
 }

@@ -16,7 +16,7 @@ use tokio::time;
 use tracing::{debug, error, info, warn};
 
 use crate::error::{Error, Result};
-use crate::peer_manager::{PeerHandle, PeerManager};
+use crate::peer_registry::{PeerHandle, PeerRegistry};
 use crate::common::NodeId;
 use crate::proto::{self, envelope::Payload, Envelope};
 use crate::protocol;
@@ -24,8 +24,6 @@ use crate::protocol;
 // ── tunables ────────────────────────────────────────────────────────────
 
 const CHANNEL_BUF: usize = 256;
-// const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
-// const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(15);
 const RECONNECT_BASE: Duration = Duration::from_secs(1);
 const RECONNECT_MAX: Duration = Duration::from_secs(30);
 
@@ -38,7 +36,7 @@ const RECONNECT_MAX: Duration = Duration::from_secs(30);
 pub fn spawn_outbound(addr: SocketAddr,
     local_node_id: NodeId,
     local_node_name: NodeId,
-    manager: PeerManager,
+    registry: PeerRegistry,
     app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
@@ -54,7 +52,7 @@ pub fn spawn_outbound(addr: SocketAddr,
                         addr,
                         &local_node_id,
                         &local_node_name,
-                        &manager,
+                        &registry,
                         &app_tx,
                         true, // we are the initiator
                     )
@@ -80,7 +78,7 @@ pub async fn handle_inbound(
     remote_addr: SocketAddr,
     local_node_id: &str,
     local_node_name: &str,
-    manager: &PeerManager,
+    registry: &PeerRegistry,
     app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
 ) {
     match run_connection(
@@ -88,7 +86,7 @@ pub async fn handle_inbound(
         remote_addr,
         local_node_id,
         local_node_name,
-        manager,
+        registry,
         app_tx,
         false,
     )
@@ -110,7 +108,7 @@ async fn run_connection(
     addr: SocketAddr,
     local_node_id: &str,
     local_node_name: &str,
-    manager: &PeerManager,
+    registry: &PeerRegistry,
     app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
     initiator: bool,
 ) -> Result<NodeId> {
@@ -129,31 +127,25 @@ async fn run_connection(
     .await?;
     info!(%addr, remote_node_id, "handshake complete");
 
-    // ── register in peer manager ────────────────────────────────────
+    // ── register in peer registry ────────────────────────────────────
     let (tx, rx) = mpsc::channel::<Envelope>(CHANNEL_BUF);
-    manager.insert(
+    registry.insert(
         remote_node_id.clone(),
         addr,
-        PeerHandle {
-            node_id: Some(remote_node_id.clone()),
-            addr,
-            tx: tx.clone(),
-        },
+        PeerHandle { tx },
     );
 
     // ── spawn writer task ───────────────────────────────────────────
     let writer_handle = tokio::spawn(writer_loop(writer, rx, addr));
 
-    // ── spawn heartbeat emitter ─────────────────────────────────────
-    // let hb_tx = tx.clone();heartbeat_em
-    // let hb_handle = tokio::spawn(heartbeat_emitter(hb_tx, addr));
-
     // ── reader loop (runs on current task) ──────────────────────────
-    let reader_result = reader_loop(&mut reader, addr, app_tx, &tx).await;
+    let reader_result = reader_loop(&mut reader, addr, app_tx).await;
 
     // Tear down sibling tasks when reader exits.
-    // hb_handle.abort();
     writer_handle.abort();
+
+    // Remove peer from registry — connection has ended.
+    registry.remove(&remote_node_id);
 
     match reader_result {
         Ok(()) => Ok(remote_node_id),
@@ -222,30 +214,11 @@ async fn reader_loop(
     reader: &mut ReadHalf<TcpStream>,
     addr: SocketAddr,
     app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
-    peer_tx: &mpsc::Sender<Envelope>,
 ) -> Result<()> {
-    // let mut last_seen = tokio::time::Instant::now();
     loop {
-        let read_fut = protocol::read_envelope(reader);
-        // let timeout_fut = time::sleep(HEARTBEAT_TIMEOUT);
-
-        tokio::select! {
-            result = read_fut => {
-                match result? {
-                    Some(env) => {
-                        // last_seen = tokio::time::Instant::now();
-                        dispatch(env, addr, app_tx, peer_tx).await?;
-                    }
-                    None => return Err(Error::ConnectionClosed(addr)),
-                }
-            }
-            /* _ = timeout_fut => {
-                // Check if we've actually timed out (select may have
-                // spuriously fired).
-                if last_seen.elapsed() >= HEARTBEAT_TIMEOUT {
-                    return Err(Error::HeartbeatTimeout(addr));
-                }
-            } */
+        match protocol::read_envelope(reader).await? {
+            Some(env) => dispatch(env, addr, app_tx).await?,
+            None => return Err(Error::ConnectionClosed(addr)),
         }
     }
 }
@@ -254,20 +227,11 @@ async fn dispatch(
     envelope: Envelope,
     addr: SocketAddr,
     app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
-    peer_tx: &mpsc::Sender<Envelope>,
 ) -> Result<()> {
     match &envelope.payload {
-        Some(Payload::Heartbeat(hb)) => {
-            debug!(%addr, seq = hb.seq, "heartbeat received");
-            let ack = Envelope {
-                payload: Some(Payload::HeartbeatAck(proto::HeartbeatAck { seq: hb.seq })),
-            };
-            let _ = peer_tx.try_send(ack);
-        }
-        Some(Payload::HeartbeatAck(ack)) => {
-            debug!(%addr, seq = ack.seq, "heartbeat ack");
-        }
-        Some(Payload::CrdtOp(_)) | Some(Payload::Handshake(_)) => {
+        Some(Payload::CrdtOp(_))
+        | Some(Payload::CrdtPullRequest(_))
+        | Some(Payload::Handshake(_)) => {
             // Forward to the application layer for processing.
             let _ = app_tx.send((addr, envelope)).await;
         }
@@ -293,21 +257,3 @@ async fn writer_loop(
     }
     debug!(%addr, "writer channel closed");
 }
-
-// ── heartbeat emitter ───────────────────────────────────────────────────
-
-/* async fn heartbeat_emitter(tx: mpsc::Sender<Envelope>, addr: SocketAddr) {
-    let mut seq: u64 = 0;
-    let mut interval = time::interval(HEARTBEAT_INTERVAL);
-    loop {
-        interval.tick().await;
-        seq += 1;
-        let hb = Envelope {
-            payload: Some(Payload::Heartbeat(proto::Heartbeat { seq })),
-        };
-        if tx.send(hb).await.is_err() {
-            debug!(%addr, "heartbeat emitter stopping (channel closed)");
-            return;
-        }
-    }
-} */

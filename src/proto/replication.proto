@@ -2,14 +2,20 @@ syntax = "proto3";
 
 package replication;
 
+// ----- Vector clock ----------------------------------------------------
+
+// A protobuf-native version vector: node-id → counter.
+message VectorClock {
+  map<string, uint64> entries = 1;
+}
+
 // ----- Top-level envelope ----------------------------------------------
 
 message Envelope {
   oneof payload {
-    Handshake    handshake     = 1;
-    Heartbeat    heartbeat     = 2;
-    HeartbeatAck heartbeat_ack = 3;
-    CrdtOp       crdt_op       = 4;
+    Handshake       handshake         = 1;
+    CrdtOp          crdt_op           = 4;
+    CrdtPullRequest crdt_pull_request = 5;
   }
 }
 
@@ -24,28 +30,78 @@ message Handshake {
   uint32 version   = 3;
 }
 
-// ----- Heartbeat / Keep-alive ------------------------------------------
-
-message Heartbeat {
-  // Monotonic sequence number so the responder can detect gaps.
-  uint64 seq = 1;
-}
-
-message HeartbeatAck {
-  // Echoes the seq from the Heartbeat it is acknowledging.
-  uint64 seq = 1;
-}
-
-// ----- CRDT operations (extend later) ----------------------------------
+// ----- CRDT operations -------------------------------------------------
 
 message CrdtOp {
   // Which CRDT instance this operation targets.
   string crdt_id = 1;
   // Opaque, serialised operation payload.  The CRDT layer will
-  // deserialise this according to the crdt_id's registered type.
+  // deserialize this according to the crdt_id's registered type.
   bytes  payload = 2;
-  // Hybrid-logical or Lamport timestamp for crdt ordering.
-  uint64 hlc_ts  = 3;
   // Originating node so we can break ties / attribute ops.
   string origin_node_id = 4;
+  // Optional piggybacked VV request.  When present, the receiver should
+  // respond with a delta since this knowledge vector, as if it had received
+  // a separate CrdtPullRequest.
+  VectorClock requester_knowledge = 5;
+}
+
+// Pull request: asks the remote to send the delta since our knowledge vector.
+message CrdtPullRequest {
+  // Which CRDT instance this pull targets.
+  string crdt_id = 1;
+  // Originating node.
+  string origin_node_id = 2;
+  // Protobuf-encoded knowledge map.
+  VectorClock knowledge = 3;
+}
+
+// ----- CRDT delta / op wire types -------------------------------------
+
+// A single causal event identifier (node, counter).
+message ProtoDot {
+  string node_id = 1;
+  uint64 counter = 2;
+}
+
+// One (element-bytes, dot) entry inside an OR-Set delta.
+message ProtoElemDot {
+  bytes   element = 1;
+  ProtoDot dot    = 2;
+}
+
+// A tombstone pair: the add-event dot and the remove-event dot.
+message ProtoDotPair {
+  ProtoDot add_dot    = 1;
+  ProtoDot remove_dot = 2;
+}
+
+// Wire representation of OrSetDelta<E>.
+// Elements are opaque bytes; the concrete CRDT impl encodes/decodes them.
+message ProtoOrSetDelta {
+  repeated ProtoElemDot  adds       = 1;
+  repeated ProtoDotPair  tombstones = 2;
+  map<string, uint64>    context    = 3;
+  string                 dot_node   = 4;
+  uint64                 dot_counter = 5;
+}
+
+// Wire representation of OrSetOp<E>.
+message ProtoOrSetOp {
+  oneof op {
+    bytes add_element    = 1;
+    bytes remove_element = 2;
+  }
+}
+
+// ----- Client commands ------------------------------------------------
+
+// Commands sent from the CLI client to the server over TCP.
+message ProtoClientCommand {
+  oneof command {
+    string add             = 1;
+    string remove          = 2;
+    bool   print_state     = 3;
+    bool   print_internals = 4;
+  }
 }

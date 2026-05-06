@@ -7,6 +7,10 @@ edition = "2021"
 name = "crdt-server"
 path = "src/main.rs"
 
+[[bin]]
+name = "crdt-client"
+path = "src/client/crdt_client.rs"
+
 [dependencies]
 tokio       = { version = "1", features = ["full"] }
 prost       = "0.13"
@@ -22,6 +26,8 @@ thiserror   = "2"
 dashmap     = "6"
 anyhow      = "1"
 dotenvy     = "0.15"
+async-trait = "0.1"                              # ← NEW
+rand        = "0.8"
 
 # S3 / MinIO
 aws-config          = { version = "1", features = ["behavior-version-latest"] }

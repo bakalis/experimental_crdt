@@ -3,9 +3,12 @@
 use crate::common::{Counter, NodeId};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+use serde::{Deserialize, Serialize};
+
+pub type CausalContext = HashMap<NodeId, Counter>;
 
 /// A single causal event identifier: (node, counter).
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Dot {
     pub node_id: NodeId,
     pub counter: Counter,
@@ -16,6 +19,59 @@ impl Dot {
         Self { node_id, counter }
     }
 }
+
+pub fn frontier_dvv(node_id: &NodeId, frontier: &HashMap<NodeId, Counter>) -> DotVersionVector {
+    let counter = frontier.get(node_id).cloned().unwrap_or(0);
+
+    DotVersionVector {
+        dot: Dot::new(node_id.clone(), counter),
+        context: frontier.clone(),
+    }
+}
+
+pub fn vv_join(
+    a: &HashMap<NodeId, Counter>,
+    b: &HashMap<NodeId, Counter>,
+) -> HashMap<NodeId, Counter> {
+    let mut out = a.clone();
+    for (k, v) in b {
+        let e = out.entry(k.clone()).or_insert(0);
+        *e = (*e).max(*v);
+    }
+    out
+}
+
+pub fn vv_meet(
+    a: &HashMap<NodeId, Counter>,
+    b: &HashMap<NodeId, Counter>,
+) -> HashMap<NodeId, Counter> {
+    let mut out = HashMap::new();
+    let mut keys = HashSet::new();
+    keys.extend(a.keys().cloned());
+    keys.extend(b.keys().cloned());
+    for k in keys {
+        let a_val = a.get(&k).copied().unwrap_or(0);
+        let b_val = b.get(&k).copied().unwrap_or(0);
+        let m = a_val.min(b_val);
+        if m > 0 {
+            out.insert(k, m);
+        }
+    }
+    out
+}
+
+pub fn vv_leq(a: &HashMap<NodeId, Counter>, b: &HashMap<NodeId, Counter>) -> bool {
+    let mut keys = HashSet::new();
+    keys.extend(a.keys().cloned());
+    keys.extend(b.keys().cloned());
+    keys.into_iter()
+        .all(|k| a.get(&k).copied().unwrap_or(0) <= b.get(&k).copied().unwrap_or(0))
+}
+
+pub fn vv_lt(a: &HashMap<NodeId, Counter>, b: &HashMap<NodeId, Counter>) -> bool {
+    vv_leq(a, b) && a != b
+}
+
 
 /// A true Dotted Version Vector (Almeida et al.)
 ///
@@ -42,10 +98,10 @@ impl Dot {
 /// `dot.counter`, OR `dot.counter == 0` (no events yet).
 ///
 /// This means the dot is always *outside* the context.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DotVersionVector {
     pub dot: Dot,
-    pub context: HashMap<NodeId, Counter>,
+    pub context: CausalContext,
 }
 
 impl DotVersionVector {
@@ -54,7 +110,7 @@ impl DotVersionVector {
     pub fn new(node_id: NodeId) -> Self {
         Self {
             dot: Dot::new(node_id, 0),
-            context: HashMap::new(),
+            context: CausalContext::new(),
         }
     }
 
@@ -75,7 +131,7 @@ impl DotVersionVector {
     }
 
     /// Build the full effective version map (context ∪ {dot}).
-    pub fn effective_map(&self) -> HashMap<NodeId, Counter> {
+    pub fn effective_map(&self) -> CausalContext{
         let mut map = self.context.clone();
         if self.dot.counter > 0 {
             let entry = map.entry(self.dot.node_id.clone()).or_insert(0);
@@ -185,10 +241,10 @@ impl DotVersionVector {
     /// with the normal `merge` function.
     pub fn delta_since(
         &self,
-        remote_knowledge: &HashMap<NodeId, Counter>,
+        remote_knowledge: &CausalContext,
     ) -> DotVersionVector {
         let eff = self.effective_map();
-        let mut delta_ctx = HashMap::new();
+        let mut delta_ctx = CausalContext::new();
 
         for (nid, &counter) in &eff {
             let known = remote_knowledge.get(nid).copied().unwrap_or(0);
@@ -730,14 +786,14 @@ mod tests {
     #[test]
     fn delta_since_empty_knowledge() {
         let a = create_dvv_with_counter("A", 3);
-        let delta = a.delta_since(&HashMap::new());
+        let delta = a.delta_since(&CausalContext::new());
         assert_eq!(delta.dot.counter, 3);
     }
 
     #[test]
     fn delta_since_up_to_date() {
         let a = create_dvv_with_counter("A", 3);
-        let mut remote = HashMap::new();
+        let mut remote = CausalContext::new();
         remote.insert(nid("A"), 3);
         let delta = a.delta_since(&remote);
         assert_eq!(delta.dot.counter, 0);
@@ -749,7 +805,7 @@ mod tests {
         let b = create_dvv_with_counter("B", 3);
         a.merge(&b);
 
-        let mut remote = HashMap::new();
+        let mut remote = CausalContext::new();
         remote.insert(nid("A"), 5);
 
         let delta = a.delta_since(&remote);
@@ -1156,5 +1212,24 @@ mod tests {
         for n in &[nid("A"), nid("B"), nid("C")] {
             assert_eq!(a.effective_counter(n), b.effective_counter(n));
         }
+    }
+
+    #[test]
+    fn vv_lt_strict_progress() {
+        let mut prev = HashMap::new();
+        prev.insert("A".to_string(), 2);
+        let mut next = HashMap::new();
+        next.insert("A".to_string(), 2);
+        next.insert("B".to_string(), 1);
+        assert!(vv_lt(&prev, &next));
+    }
+
+    #[test]
+    fn vv_lt_rejects_no_progress() {
+        let mut prev = HashMap::new();
+        prev.insert("A".to_string(), 2);
+        let mut next = HashMap::new();
+        next.insert("A".to_string(), 2);
+        assert!(!vv_lt(&prev, &next));
     }
 }

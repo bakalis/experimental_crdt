@@ -16,19 +16,17 @@ use crate::{common::NodeId, proto::Envelope};
 /// that peer's write loop.
 #[derive(Debug, Clone)]
 pub struct PeerHandle {
-    pub node_id: Option<NodeId>,
-    pub addr: SocketAddr,
     /// Send side of the channel that feeds the peer's writer task.
     pub tx: mpsc::Sender<Envelope>,
 }
 
 /// Concurrent, clonable registry of all active peers.
 #[derive(Debug, Clone)]
-pub struct PeerManager {
+pub struct PeerRegistry {
     peers: Arc<DashMap<NodeId, (SocketAddr, PeerHandle)>>,
 }
 
-impl PeerManager {
+impl PeerRegistry {
     pub fn new() -> Self {
         Self {
             peers: Arc::new(DashMap::new()),
@@ -61,10 +59,21 @@ impl PeerManager {
     pub fn peer_ids(&self) -> Vec<NodeId> {
         self.peers.iter().map(|r| r.key().clone()).collect()
     }
+    
+    pub fn send_to_peer(&self, node_id: &NodeId, envelope: Envelope) -> Result<(), String> {
+        if let Some(entry) = self.peers.get(node_id) {
+            let addr = entry.value().0;
+            entry.value().1.tx.try_send(envelope).map_err(|e| {
+                format!("failed to send to peer {}: {}", node_id, e)
+            })
+        } else {
+            Err(format!("peer {} not found", node_id))
+        }
+    }
 
     /// Broadcast an envelope to **all** connected peers.
     /// Skips peers whose channel is full / closed and logs a warning.
-    pub async fn broadcast(&self, envelope: Envelope) {
+    pub fn broadcast(&self, envelope: Envelope) {
         for entry in self.peers.iter() {
             let addr = entry.value().0;
             if let Err(e) = entry.value().1.tx.try_send(envelope.clone()) {
