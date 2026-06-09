@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Observed-Remove Set (OR-Set).
 //!
 //! Each element is tagged with a `Dot` supplied by the engine.
@@ -9,10 +10,10 @@ use std::hash::Hash;
 use prost::Message as _;
 
 use crate::common::{Counter, NodeId};
-use crate::crdt::{DeltaCrdt, DeltaContext, ElementCodec};
+use crate::crdt::{DeltaContext, DeltaCrdt, ElementCodec};
 use crate::logical_clocks::dot_version_vector::{Dot, DotVersionVector};
-use crate::proto::{ProtoDot, ProtoDotPair, ProtoElemDot, ProtoOrSetDelta, ProtoOrSetOp};
 use crate::proto::proto_or_set_op;
+use crate::proto::{ProtoDot, ProtoDotPair, ProtoElemDot, ProtoOrSetDelta, ProtoOrSetOp};
 
 // ── Op ──────────────────────────────────────────────────────────────────
 
@@ -168,12 +169,14 @@ where
     }
 
     fn print_internals(&self) -> String {
-        let adds = self.adds 
+        let adds = self
+            .adds
             .iter()
             .map(|e| format!("{:?}", e))
             .collect::<Vec<_>>()
             .join(", ");
-        let tombstones = self.tombstones 
+        let tombstones = self
+            .tombstones
             .iter()
             .map(|e| format!("{:?}", e))
             .collect::<Vec<_>>()
@@ -186,9 +189,7 @@ where
         let adds: Vec<(E, Dot)> = self
             .adds
             .iter()
-            .flat_map(|(elem, dots)| {
-                dots.iter().map(move |dot| (elem.clone(), dot.clone()))
-            })
+            .flat_map(|(elem, dots)| dots.iter().map(move |dot| (elem.clone(), dot.clone())))
             .collect();
 
         let tombstones: Vec<(Dot, Dot)> = self
@@ -254,47 +255,76 @@ where
 
     fn encode_delta(delta: &OrSetDelta<E>) -> Vec<u8> {
         let proto_delta = ProtoOrSetDelta {
-            adds: delta.adds.iter().map(|(elem, dot)| ProtoElemDot {
-                element: elem.encode_elem(),
-                dot: Some(ProtoDot { node_id: dot.node_id.clone(), counter: dot.counter }),
-            }).collect(),
-            tombstones: delta.tombstones.iter().map(|(add_dot, remove_dot)| ProtoDotPair {
-                add_dot: Some(ProtoDot { node_id: add_dot.node_id.clone(), counter: add_dot.counter }),
-                remove_dot: Some(ProtoDot { node_id: remove_dot.node_id.clone(), counter: remove_dot.counter }),
-            }).collect(),
+            adds: delta
+                .adds
+                .iter()
+                .map(|(elem, dot)| ProtoElemDot {
+                    element: elem.encode_elem(),
+                    dot: Some(ProtoDot {
+                        node_id: dot.node_id.clone(),
+                        counter: dot.counter,
+                    }),
+                })
+                .collect(),
+            tombstones: delta
+                .tombstones
+                .iter()
+                .map(|(add_dot, remove_dot)| ProtoDotPair {
+                    add_dot: Some(ProtoDot {
+                        node_id: add_dot.node_id.clone(),
+                        counter: add_dot.counter,
+                    }),
+                    remove_dot: Some(ProtoDot {
+                        node_id: remove_dot.node_id.clone(),
+                        counter: remove_dot.counter,
+                    }),
+                })
+                .collect(),
             context: delta.context.clone(),
             dot_node: delta.dot_node.clone(),
             dot_counter: delta.dot_counter,
         };
+
         proto_delta.encode_to_vec()
     }
 
-    fn decode_delta(
-        bytes: &[u8],
-    ) -> Result<OrSetDelta<E>, Box<dyn std::error::Error + Send + Sync>> {
-        let proto_delta = ProtoOrSetDelta::decode(bytes)?;
+    fn decode_delta(bytes: &[u8]) -> anyhow::Result<OrSetDelta<E>> {
+        let proto_delta = ProtoOrSetDelta::decode(bytes)
+            .map_err(anyhow::Error::from)?;
 
-        let adds = proto_delta.adds.into_iter()
-            .map(|ed| {
+        let adds = proto_delta
+            .adds
+            .into_iter()
+            .map(|ed| -> anyhow::Result<_> {
                 let elem = E::decode_elem(&ed.element)?;
-                let dot_proto = ed.dot.ok_or("missing dot in ProtoElemDot")
-                    .map_err(|s| Box::<dyn std::error::Error + Send + Sync>::from(s))?;
+
+                let dot_proto = ed
+                    .dot
+                    .ok_or_else(|| anyhow::anyhow!("missing dot in ProtoElemDot"))?;
+
                 let dot = Dot::new(dot_proto.node_id, dot_proto.counter);
                 Ok((elem, dot))
             })
-            .collect::<Result<Vec<_>, Box<dyn std::error::Error + Send + Sync>>>()?;
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
-        let tombstones = proto_delta.tombstones.into_iter()
-            .map(|dp| {
-                let add_proto = dp.add_dot.ok_or("missing add_dot in ProtoDotPair")
-                    .map_err(|s| Box::<dyn std::error::Error + Send + Sync>::from(s))?;
-                let remove_proto = dp.remove_dot.ok_or("missing remove_dot in ProtoDotPair")
-                    .map_err(|s| Box::<dyn std::error::Error + Send + Sync>::from(s))?;
+        let tombstones = proto_delta
+            .tombstones
+            .into_iter()
+            .map(|dp| -> anyhow::Result<_> {
+                let add_proto = dp
+                    .add_dot
+                    .ok_or_else(|| anyhow::anyhow!("missing add_dot in ProtoDotPair"))?;
+
+                let remove_proto = dp
+                    .remove_dot
+                    .ok_or_else(|| anyhow::anyhow!("missing remove_dot in ProtoDotPair"))?;
+
                 let add_dot = Dot::new(add_proto.node_id, add_proto.counter);
                 let remove_dot = Dot::new(remove_proto.node_id, remove_proto.counter);
+
                 Ok((add_dot, remove_dot))
             })
-            .collect::<Result<Vec<_>, Box<dyn std::error::Error + Send + Sync>>>()?;
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
         Ok(OrSetDelta {
             adds,
@@ -315,10 +345,10 @@ where
         proto_op.encode_to_vec()
     }
 
-    fn decode_op(
-        bytes: &[u8],
-    ) -> Result<OrSetOp<E>, Box<dyn std::error::Error + Send + Sync>> {
-        let proto_op = ProtoOrSetOp::decode(bytes)?;
+    fn decode_op(bytes: &[u8]) -> anyhow::Result<OrSetOp<E>> {
+        let proto_op = ProtoOrSetOp::decode(bytes)
+            .map_err(anyhow::Error::from)?;
+
         match proto_op.op {
             Some(proto_or_set_op::Op::AddElement(b)) => {
                 Ok(OrSetOp::Add(E::decode_elem(&b)?))
@@ -326,7 +356,7 @@ where
             Some(proto_or_set_op::Op::RemoveElement(b)) => {
                 Ok(OrSetOp::Remove(E::decode_elem(&b)?))
             }
-            None => Err(Box::<dyn std::error::Error + Send + Sync>::from("empty ProtoOrSetOp")),
+            Option::None => Err(anyhow::anyhow!("empty ProtoOrSetOp")),
         }
     }
 }
@@ -355,7 +385,7 @@ mod tests {
 
     /// Simulate what the engine does when merging a remote delta:
     /// merge into CRDT then merge the DVV context.
-    fn engine_merge_delta (
+    fn engine_merge_delta(
         set: &mut OrSet<String>,
         dvv: &mut DotVersionVector,
         delta: &OrSetDelta<String>,
@@ -374,7 +404,7 @@ mod tests {
         let mut set = OrSet::<String>::new();
         let mut dvv = DotVersionVector::new(nid("A"));
 
-        let _ = engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("x".to_string()));
+        engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("x".to_string()));
 
         assert!(set.contains(&"x".to_string()));
         assert_eq!(dvv.dot.counter, 1);
@@ -385,11 +415,11 @@ mod tests {
         let mut set = OrSet::<String>::new();
         let mut dvv = DotVersionVector::new(nid("A"));
 
-        let _ = engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("x".to_string()));
+        engine_apply_local(&mut set, &mut dvv, OrSetOp::Add("x".to_string()));
         assert_eq!(dvv.dot.counter, 1);
 
         // Remove mints a new dot (tombstone event) — DVV advances.
-        let _ = engine_apply_local(&mut set, &mut dvv, OrSetOp::Remove("x".to_string()));
+        engine_apply_local(&mut set, &mut dvv, OrSetOp::Remove("x".to_string()));
         assert_eq!(dvv.dot.counter, 2);
         assert!(!set.contains(&"x".to_string()));
     }
@@ -546,7 +576,11 @@ mod tests {
 
         let delta = a_set.delta_since(&b_knowledge, &a_dvv);
         assert!(delta.adds.is_empty(), "no new adds expected");
-        assert_eq!(delta.tombstones.len(), 1, "B is missing the remove tombstone");
+        assert_eq!(
+            delta.tombstones.len(),
+            1,
+            "B is missing the remove tombstone"
+        );
     }
 
     #[test]

@@ -9,7 +9,7 @@ use tokio::net::TcpStream;
 #[path = "../proto/mod.rs"]
 mod proto;
 
-use proto::{ProtoClientCommand, proto_client_command};
+use proto::{proto_client_command, ProtoClientCommand};
 
 #[derive(Parser, Debug)]
 #[command(version, about = "CLI client for CRDT server operations")]
@@ -25,12 +25,17 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Command {
     /// Insert a string into the OR-Set.
-    Add { value: String },
+    Add {
+        value: String,
+    },
     /// Remove a string from the OR-Set.
-    Remove { value: String },
+    Remove {
+        value: String,
+    },
     /// Ask the server to print CRDT inner state.
     PrintState,
     PrintInternals,
+    PrintMatrix,
 }
 
 #[tokio::main]
@@ -41,6 +46,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Remove { value } => proto_client_command::Command::Remove(value),
         Command::PrintState => proto_client_command::Command::PrintState(true),
         Command::PrintInternals => proto_client_command::Command::PrintInternals(true),
+        Command::PrintMatrix => proto_client_command::Command::PrintMatrix(true),
     });
     let payload = ProtoClientCommand { command }.encode_to_vec();
 

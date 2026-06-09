@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! S3 client wrapper.
 
 use aws_credential_types::Credentials;
@@ -6,12 +7,13 @@ use aws_sdk_s3::error::SdkError;
 use aws_sdk_s3::Client as AwsS3Client;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::sync::Arc;
 use tracing::{debug, info};
 
-/// Thin wrapper around [`aws_sdk_s3::Client`] 
+/// Thin wrapper around [`aws_sdk_s3::Client`]
 #[derive(Clone)]
 pub struct S3Client {
-    inner: AwsS3Client,
+    inner: Arc<AwsS3Client>,
 }
 
 impl S3Client {
@@ -26,7 +28,7 @@ impl S3Client {
             .force_path_style(true)
             .build();
         Self {
-            inner: AwsS3Client::from_conf(config),
+            inner: Arc::new(AwsS3Client::from_conf(config)),
         }
     }
 
@@ -94,16 +96,26 @@ impl S3Client {
                 if code == "PreconditionFailed" {
                     Ok(false)
                 } else {
-                    Err(anyhow::anyhow!("put_object_if_absent failed for key {key}: {code}"))
+                    Err(anyhow::anyhow!(
+                        "put_object_if_absent failed for key {key}: {code}"
+                    ))
                 }
             }
-            Err(e) => Err(anyhow::anyhow!("put_object_if_absent failed for key {key}: {e}")),
+            Err(e) => Err(anyhow::anyhow!(
+                "put_object_if_absent failed for key {key}: {e}"
+            )),
         }
     }
 
     /// Download and return the body of `key` from `bucket`.
     pub async fn get_object(&self, bucket: &str, key: &str) -> anyhow::Result<Vec<u8>> {
-        let resp = self.inner.get_object().bucket(bucket).key(key).send().await?;
+        let resp = self
+            .inner
+            .get_object()
+            .bucket(bucket)
+            .key(key)
+            .send()
+            .await?;
         let body = resp.body.collect().await?;
         Ok(body.into_bytes().to_vec())
     }
@@ -130,7 +142,9 @@ impl S3Client {
                     ))
                 }
             }
-            Err(e) => Err(anyhow::anyhow!("get_object_optional failed for key {key}: {e}")),
+            Err(e) => Err(anyhow::anyhow!(
+                "get_object_optional failed for key {key}: {e}"
+            )),
         }
     }
 
@@ -170,7 +184,7 @@ impl S3Client {
 
             match resp.next_continuation_token() {
                 Some(token) => continuation_token = Some(token.to_string()),
-                None => break,
+                Option::None => break,
             }
         }
 
@@ -185,7 +199,8 @@ impl S3Client {
         value: &T,
     ) -> anyhow::Result<()> {
         let bytes = serde_json::to_vec(value)?;
-        self.put_object(bucket, key, bytes, "application/json").await
+        self.put_object(bucket, key, bytes, "application/json")
+            .await
     }
 
     /// Serialize `value` as JSON and upload it to `key` only if absent.
@@ -205,7 +220,11 @@ impl S3Client {
     }
 
     /// Download `key` from `bucket` and deserialize JSON into `T`.
-    pub async fn get_json<T: DeserializeOwned>(&self, bucket: &str, key: &str) -> anyhow::Result<T> {
+    pub async fn get_json<T: DeserializeOwned>(
+        &self,
+        bucket: &str,
+        key: &str,
+    ) -> anyhow::Result<T> {
         let bytes = self.get_object(bucket, key).await?;
         let value = serde_json::from_slice(&bytes)
             .map_err(|e| anyhow::anyhow!("failed to decode json for key {key}: {e}"))?;
@@ -226,7 +245,7 @@ impl S3Client {
                     .map_err(|e| anyhow::anyhow!("failed to decode json for key {key}: {e}"))?;
                 Ok(Some(value))
             }
-            None => Ok(None),
+            Option::None => Ok(None),
         }
     }
 }

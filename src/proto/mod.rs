@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // This file is kept in sync with replication.proto by hand (no build.rs).
 // It contains prost-derived Rust types for every proto message.
 
@@ -32,6 +33,7 @@ pub mod envelope {
         CrdtPullRequest(super::CrdtPullRequest),
     }
 }
+
 // ----- Handshake -------------------------------------------------------
 
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -45,7 +47,10 @@ pub struct Handshake {
     /// Protocol version for forward-compat checks.
     #[prost(uint32, tag = "3")]
     pub version: u32,
+    #[prost(bool, tag = "4")]
+    pub gc_replica: bool,
 }
+
 // ----- CRDT operations -------------------------------------------------
 
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -65,6 +70,9 @@ pub struct CrdtOp {
     /// received a separate CrdtPullRequest.
     #[prost(message, optional, tag = "5")]
     pub requester_knowledge: ::core::option::Option<VectorClock>,
+    /// Optional knowledge matrix: node-id -> VectorClock.
+    #[prost(message, optional, tag = "6")]
+    pub knowledge_matrix: ::core::option::Option<crdt_op::KnowledgeMatrix>,
 }
 
 /// Pull request: asks the remote to send the delta since our knowledge vector.
@@ -79,6 +87,19 @@ pub struct CrdtPullRequest {
     /// Protobuf-encoded knowledge map.
     #[prost(message, optional, tag = "3")]
     pub knowledge: ::core::option::Option<VectorClock>,
+    /// If true, request that the remote performs replica GC (implementation-defined).
+    #[prost(bool, tag = "4")]
+    pub gc_replica: bool,
+}
+
+/// Nested message and enum types in `CrdtPullRequest`.
+pub mod crdt_op {
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct KnowledgeMatrix {
+        #[prost(map = "string, message", tag = "1")]
+        pub entries:
+            ::std::collections::HashMap<::prost::alloc::string::String, super::VectorClock>,
+    }
 }
 
 // ----- CRDT delta / op wire types -------------------------------------
@@ -148,7 +169,7 @@ pub mod proto_or_set_op {
 /// Framing: 4-byte big-endian length prefix followed by the prost-encoded bytes.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ProtoClientCommand {
-    #[prost(oneof = "proto_client_command::Command", tags = "1, 2, 3, 4")]
+    #[prost(oneof = "proto_client_command::Command", tags = "1, 2, 3, 4, 5")]
     pub command: ::core::option::Option<proto_client_command::Command>,
 }
 pub mod proto_client_command {
@@ -162,6 +183,8 @@ pub mod proto_client_command {
         PrintState(bool),
         #[prost(bool, tag = "4")]
         PrintInternals(bool),
+        #[prost(bool, tag = "5")]
+        PrintMatrix(bool),
     }
 }
 // @@protoc_insertion_point(module)

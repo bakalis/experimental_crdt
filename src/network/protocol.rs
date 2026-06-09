@@ -10,7 +10,7 @@ use bytes::{Buf, BufMut, BytesMut};
 use prost::Message;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-use crate::error::{Error, Result};
+use crate::common::error::{Error, Result};
 use crate::proto::Envelope;
 
 const MAX_FRAME_LEN: u32 = 16 * 1024 * 1024; // 16 MiB safety cap

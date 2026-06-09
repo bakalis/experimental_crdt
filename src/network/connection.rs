@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Per-peer connection lifecycle: connect → handshake → read/write loops.
 //!
 //! Each peer is managed by two Tokio tasks:
@@ -15,11 +16,11 @@ use tokio::sync::mpsc;
 use tokio::time;
 use tracing::{debug, error, info, warn};
 
-use crate::error::{Error, Result};
-use crate::peer_registry::{PeerHandle, PeerRegistry};
 use crate::common::NodeId;
+use crate::common::error::{Error, Result};
+use crate::peers::peer_registry::{PeerHandle, PeerRegistry};
 use crate::proto::{self, envelope::Payload, Envelope};
-use crate::protocol;
+use crate::network::protocol;
 
 // ── tunables ────────────────────────────────────────────────────────────
 
@@ -33,9 +34,11 @@ const RECONNECT_MAX: Duration = Duration::from_secs(30);
 ///
 /// Returns a `JoinHandle` and a `CancellationToken`-style `mpsc::Sender`
 /// whose drop will cause the task tree to shut down.
-pub fn spawn_outbound(addr: SocketAddr,
+pub fn spawn_outbound(
+    addr: SocketAddr,
     local_node_id: NodeId,
     local_node_name: NodeId,
+    gc_replica: bool,
     registry: PeerRegistry,
     app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
 ) -> tokio::task::JoinHandle<()> {
@@ -52,6 +55,7 @@ pub fn spawn_outbound(addr: SocketAddr,
                         addr,
                         &local_node_id,
                         &local_node_name,
+                        gc_replica,
                         &registry,
                         &app_tx,
                         true, // we are the initiator
@@ -78,6 +82,7 @@ pub async fn handle_inbound(
     remote_addr: SocketAddr,
     local_node_id: &str,
     local_node_name: &str,
+    gc_replica: bool,
     registry: &PeerRegistry,
     app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
 ) {
@@ -86,6 +91,7 @@ pub async fn handle_inbound(
         remote_addr,
         local_node_id,
         local_node_name,
+        gc_replica,
         registry,
         app_tx,
         false,
@@ -108,6 +114,7 @@ async fn run_connection(
     addr: SocketAddr,
     local_node_id: &str,
     local_node_name: &str,
+    gc_replica: bool,
     registry: &PeerRegistry,
     app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
     initiator: bool,
@@ -116,22 +123,24 @@ async fn run_connection(
     let (mut reader, mut writer) = tokio::io::split(stream);
 
     // ── handshake ───────────────────────────────────────────────────
-    let remote_node_id = handshake(
+    let (remote_node_id, remote_gc_replica) = handshake(
         &mut reader,
         &mut writer,
         local_node_id,
         local_node_name,
+        gc_replica,
         addr,
         initiator,
     )
     .await?;
-    info!(%addr, remote_node_id, "handshake complete");
+    info!(%addr, remote_node_id, remote_gc_replica, "handshake complete");
 
     // ── register in peer registry ────────────────────────────────────
     let (tx, rx) = mpsc::channel::<Envelope>(CHANNEL_BUF);
     registry.insert(
         remote_node_id.clone(),
         addr,
+        remote_gc_replica,
         PeerHandle { tx },
     );
 
@@ -160,13 +169,15 @@ async fn handshake(
     writer: &mut WriteHalf<TcpStream>,
     local_node_id: &str,
     local_node_name: &str,
+    gc_replica: bool,
     addr: SocketAddr,
     initiator: bool,
-) -> Result<String> {
+) -> Result<(String, bool)> {
     let hs = Envelope {
         payload: Some(Payload::Handshake(proto::Handshake {
             node_id: local_node_id.to_string(),
             node_name: local_node_name.to_string(),
+            gc_replica,
             version: 1,
         })),
     };
@@ -177,16 +188,16 @@ async fn handshake(
         receive_handshake(reader, addr).await
     } else {
         // Wait for remote handshake, then reply.
-        let remote_id = receive_handshake(reader, addr).await?;
+        let (remote_id, gc_replica) = receive_handshake(reader, addr).await?;
         protocol::write_envelope(writer, &hs).await?;
-        Ok(remote_id)
+        Ok((remote_id, gc_replica))
     }
 }
 
 async fn receive_handshake(
     reader: &mut ReadHalf<TcpStream>,
     addr: SocketAddr,
-) -> Result<String> {
+) -> Result<(String, bool)> {
     let envelope = protocol::read_envelope(reader)
         .await?
         .ok_or_else(|| Error::HandshakeFailed(addr, "EOF before handshake".into()))?;
@@ -199,7 +210,7 @@ async fn receive_handshake(
                     format!("unsupported version {}", hs.version),
                 ));
             }
-            Ok(hs.node_id)
+            Ok((hs.node_id, hs.gc_replica))
         }
         other => Err(Error::HandshakeFailed(
             addr,
@@ -218,7 +229,7 @@ async fn reader_loop(
     loop {
         match protocol::read_envelope(reader).await? {
             Some(env) => dispatch(env, addr, app_tx).await?,
-            None => return Err(Error::ConnectionClosed(addr)),
+            Option::None => return Err(Error::ConnectionClosed(addr)),
         }
     }
 }
@@ -235,7 +246,7 @@ async fn dispatch(
             // Forward to the application layer for processing.
             let _ = app_tx.send((addr, envelope)).await;
         }
-        None => {
+        Option::None => {
             warn!(%addr, "received envelope with no payload");
         }
     }

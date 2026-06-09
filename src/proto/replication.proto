@@ -28,6 +28,8 @@ message Handshake {
   string node_name = 2;
   // Protocol version for forward-compat checks.
   uint32 version   = 3;
+  // If true, the sender is requesting that the receiver performs replica GC (implementation-defined).
+  bool gc_replica = 4;
 }
 
 // ----- CRDT operations -------------------------------------------------
@@ -44,6 +46,16 @@ message CrdtOp {
   // respond with a delta since this knowledge vector, as if it had received
   // a separate CrdtPullRequest.
   VectorClock requester_knowledge = 5;
+
+  // Optional knowledge matrix: node-id -> VectorClock.
+  // proto3 doesn't support `optional map<...>` directly in a way that maps cleanly
+  // to "Option<HashMap<...>>" in Rust prost, so we wrap the map in a message and
+  // mark that wrapper as optional.
+  message KnowledgeMatrix {
+    map<string, VectorClock> entries = 1;
+  }
+
+  KnowledgeMatrix knowledge_matrix = 6;
 }
 
 // Pull request: asks the remote to send the delta since our knowledge vector.
@@ -52,8 +64,12 @@ message CrdtPullRequest {
   string crdt_id = 1;
   // Originating node.
   string origin_node_id = 2;
+
   // Protobuf-encoded knowledge map.
   VectorClock knowledge = 3;
+
+  // If true, request that the remote performs replica GC (implementation-defined).
+  bool gc_replica = 4;
 }
 
 // ----- CRDT delta / op wire types -------------------------------------
@@ -103,5 +119,6 @@ message ProtoClientCommand {
     string remove          = 2;
     bool   print_state     = 3;
     bool   print_internals = 4;
+    bool   print_matrix    = 5;
   }
 }

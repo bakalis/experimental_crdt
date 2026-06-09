@@ -1,21 +1,20 @@
-mod connection;
-mod crdt;
-mod crdt_engine;
-mod discovery;
-mod dissemination;
-mod error;
-mod gc;
-mod peer_registry;
-mod protocol;
-mod s3_client;
-mod server;
 mod common;
-mod proto;
+mod crdt;
+mod engine;
+mod peers;
+mod gc;
 mod logical_clocks;
+mod proto;
+mod network;
+mod storage;
+mod server;
 
 use clap::Parser;
-use std::net::SocketAddr;
+use std::time::Duration;
 use dotenvy::dotenv;
+use std::collections::HashSet;
+use std::net::SocketAddr;
+use crate::peers::discovery;
 
 /// CRDT replication server with S3-based peer discovery.
 #[derive(Parser, Debug)]
@@ -33,8 +32,12 @@ struct Cli {
     #[arg(short, long)]
     name: Option<String>,
 
-    // ── S3 / MinIO discovery ────────────────────────────────────
+    /// Optional address for the client operation listener (protobuf-over-TCP).
+    /// Clients connect and send length-prefixed protobuf `ProtoClientCommand` messages.
+    #[arg(long)]
+    client_addr: Option<SocketAddr>,
 
+    // ── S3 / MinIO discovery ────────────────────────────────────
     /// S3-compatible endpoint URL (e.g. http://localhost:9000).
     #[arg(long, env = "S3_ENDPOINT")]
     s3_endpoint: String,
@@ -64,10 +67,12 @@ struct Cli {
     #[arg(long, default_value = "30")]
     registration_ttl_secs: u64,
 
-    /// Optional address for the client operation listener (protobuf-over-TCP).
-    /// Clients connect and send length-prefixed protobuf `ProtoClientCommand` messages.
-    #[arg(long)]
-    client_addr: Option<SocketAddr>,
+    /// Optional comma-separated node IDs to connect to (env: DISCOVERY_CONNECT_NODE_IDS).
+    #[arg(long, env = "DISCOVERY_CONNECT_NODE_IDS")]
+    discovery_connect_node_ids: Option<String>,
+
+    #[arg(short, long, action = clap::ArgAction::SetTrue, default_value_t = false)]
+    gc_replica: bool,
 
     /// Prefix under the configured S3 bucket for GC protocol objects.
     #[arg(long, default_value = "gc")]
@@ -90,8 +95,7 @@ struct Cli {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
@@ -100,26 +104,54 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let node_name = cli.name.unwrap_or_else(|| cli.listen.to_string());
     let advertise_addr = cli.advertise.unwrap_or(cli.listen);
+    let connect_node_ids: Option<HashSet<String>> = cli
+        .discovery_connect_node_ids
+        .as_deref()
+        .map(|raw| {
+            raw.split(',')
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .map(ToOwned::to_owned)
+                .collect::<HashSet<_>>()
+        })
+        .filter(|set| !set.is_empty());
 
     let discovery_cfg = discovery::DiscoveryConfig {
         endpoint: cli.s3_endpoint,
-        bucket: cli.s3_bucket,
+        bucket: cli.s3_bucket.clone(),
         region: cli.s3_region,
         access_key: cli.s3_access_key,
         secret_key: cli.s3_secret_key,
         poll_interval: std::time::Duration::from_secs(cli.discovery_interval_secs),
         registration_ttl: std::time::Duration::from_secs(cli.registration_ttl_secs),
+        gc_replica: cli.gc_replica,
+        connect_node_ids,
     };
 
-    let server = server::Server::new(
-        cli.listen,
+    let gc_replica = cli.gc_replica;
+
+    let server_config = server::ServerConfig {
+        listen_addr: cli.listen,
+        gc_replica,
         advertise_addr,
-        &node_name,
-        cli.client_addr,
-        cli.gc_prefix,
-        std::time::Duration::from_secs(cli.gc_initiate_interval_secs),
-        std::time::Duration::from_secs(cli.gc_observe_interval_secs),
-        std::time::Duration::from_secs(cli.gc_cleanup_interval_secs),
-    );
-    server.run(discovery_cfg).await
+        node_name: node_name.clone(),
+        client_addr: cli.client_addr,
+    };
+
+    let gc_config = gc::GcConfig {
+        gc_replica,
+        observe_interval: std::time::Duration::from_secs(cli.gc_observe_interval_secs),
+        storage_config: gc::GcStorageConfig {
+            bucket: cli.s3_bucket.clone(),
+            prefix: cli.gc_prefix.clone(),
+        },
+        gc_replica_config: if cli.gc_replica {
+            Some(gc::GcReplicaConfig::new(Duration::from_secs(cli.gc_initiate_interval_secs)))
+        } else {
+            None
+        },
+    };
+
+    let server = server::Server::new(server_config, discovery_cfg).await?;
+    server.run(gc_config).await
 }

@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
 use crate::common::{Counter, NodeId};
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use serde::{Deserialize, Serialize};
 
 pub type CausalContext = HashMap<NodeId, Counter>;
 
@@ -72,7 +72,6 @@ pub fn vv_lt(a: &HashMap<NodeId, Counter>, b: &HashMap<NodeId, Counter>) -> bool
     vv_leq(a, b) && a != b
 }
 
-
 /// A true Dotted Version Vector (Almeida et al.)
 ///
 /// The full causal knowledge of this DVV is:
@@ -85,7 +84,7 @@ pub fn vv_lt(a: &HashMap<NodeId, Counter>, b: &HashMap<NodeId, Counter>) -> bool
 ///   *outside* the context.  A counter of 0 means "no event
 ///   generated yet".
 ///
-/// * `context` 
+/// * `context`
 ///
 /// – compact causal history of **all other observed events**.
 ///   It deliberately does **not** contain an entry for
@@ -114,6 +113,9 @@ impl DotVersionVector {
         }
     }
 
+    pub fn remove(&mut self, node_id: &NodeId) {
+        self.context.remove(node_id);
+    }
     // ── Effective knowledge ─────────────────────────────────────────
 
     /// The effective counter this DVV knows for `node_id`.
@@ -131,7 +133,7 @@ impl DotVersionVector {
     }
 
     /// Build the full effective version map (context ∪ {dot}).
-    pub fn effective_map(&self) -> CausalContext{
+    pub fn effective_map(&self) -> CausalContext {
         let mut map = self.context.clone();
         if self.dot.counter > 0 {
             let entry = map.entry(self.dot.node_id.clone()).or_insert(0);
@@ -177,10 +179,7 @@ impl DotVersionVector {
     /// is strictly above it.
     pub fn event(&mut self) {
         if self.dot.counter > 0 {
-            let entry = self
-                .context
-                .entry(self.dot.node_id.clone())
-                .or_insert(0);
+            let entry = self.context.entry(self.dot.node_id.clone()).or_insert(0);
             *entry = (*entry).max(self.dot.counter);
         }
         self.dot.counter += 1;
@@ -209,20 +208,14 @@ impl DotVersionVector {
                 if remote_counter < self.dot.counter {
                     // Remote knows about some of our past — absorb
                     // into context, but never up to our dot.
-                    let entry = self
-                        .context
-                        .entry(nid.clone())
-                        .or_insert(0);
+                    let entry = self.context.entry(nid.clone()).or_insert(0);
                     *entry = (*entry).max(remote_counter);
                 } else if remote_counter > self.dot.counter {
                     // State-transfer / rejoin: remote knows more
                     // about us than we do.  Fast-forward.
                     // Context absorbs up to remote_counter - 1,
                     // dot becomes remote_counter.
-                    let entry = self
-                        .context
-                        .entry(nid.clone())
-                        .or_insert(0);
+                    let entry = self.context.entry(nid.clone()).or_insert(0);
                     *entry = (*entry).max(remote_counter - 1);
                     self.dot.counter = remote_counter;
                 }
@@ -239,10 +232,7 @@ impl DotVersionVector {
     /// Produce a minimal delta for a peer whose knowledge is
     /// `remote_knowledge`.  The delta is a DVV that can be merged
     /// with the normal `merge` function.
-    pub fn delta_since(
-        &self,
-        remote_knowledge: &CausalContext,
-    ) -> DotVersionVector {
+    pub fn delta_since(&self, remote_knowledge: &CausalContext) -> DotVersionVector {
         let eff = self.effective_map();
         let mut delta_ctx = CausalContext::new();
 
@@ -305,7 +295,6 @@ impl PartialOrd for DotVersionVector {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -844,10 +833,7 @@ mod tests {
             source.event();
             let delta = source.delta_since(&sink.effective_map());
             sink.merge(&delta);
-            assert_eq!(
-                sink.effective_counter(&nid("S")),
-                (batch + 1) * 2,
-            );
+            assert_eq!(sink.effective_counter(&nid("S")), (batch + 1) * 2,);
             assert_dot_outside_context(&sink);
         }
         assert_eq!(sink.effective_counter(&nid("S")), 10);
@@ -1067,8 +1053,10 @@ mod tests {
     #[test]
     fn five_node_cluster_full_replication() {
         let names: Vec<String> = (0..5).map(|i| format!("N{}", i)).collect();
-        let mut dvvs: Vec<DotVersionVector> =
-            names.iter().map(|n| DotVersionVector::new(n.clone())).collect();
+        let mut dvvs: Vec<DotVersionVector> = names
+            .iter()
+            .map(|n| DotVersionVector::new(n.clone()))
+            .collect();
 
         for (i, dvv) in dvvs.iter_mut().enumerate() {
             for _ in 0..(i + 1) {
@@ -1100,10 +1088,7 @@ mod tests {
 
         // Verify actual values: N0=1, N1=2, N2=3, N3=4, N4=5
         for i in 0..5 {
-            assert_eq!(
-                dvvs[0].effective_counter(&names[i]),
-                (i + 1) as Counter,
-            );
+            assert_eq!(dvvs[0].effective_counter(&names[i]), (i + 1) as Counter,);
         }
     }
 
@@ -1156,7 +1141,7 @@ mod tests {
         let a = DotVersionVector::new(nid("A"));
         assert_eq!(a.effective_counter(&nid("UNKNOWN")), 0);
     }
-    
+
     // EVENT AFTER MERGE PRESERVES REMOTE KNOWLEDGE
 
     #[test]

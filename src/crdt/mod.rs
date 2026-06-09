@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Generic delta-CRDT trait.
 //!
 //! CRDT implementations receive a freshly-minted `Dot` and the current
@@ -21,7 +22,7 @@ use crate::logical_clocks::dot_version_vector::{Dot, DotVersionVector};
 /// Implement this for your element type to use it in [`crate::crdt::or_set::OrSet`].
 pub trait ElementCodec: Sized + Send + Sync + 'static {
     fn encode_elem(&self) -> Vec<u8>;
-    fn decode_elem(bytes: &[u8]) -> Result<Self, Box<dyn std::error::Error + Send + Sync>>;
+    fn decode_elem(bytes: &[u8]) -> Result<Self, anyhow::Error>;
 }
 
 impl ElementCodec for String {
@@ -29,8 +30,8 @@ impl ElementCodec for String {
         self.as_bytes().to_vec()
     }
 
-    fn decode_elem(bytes: &[u8]) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        String::from_utf8(bytes.to_vec()).map_err(|e| Box::new(e) as _)
+    fn decode_elem(bytes: &[u8]) -> Result<Self, anyhow::Error> {
+        String::from_utf8(bytes.to_vec()).map_err(anyhow::Error::from)
     }
 }
 
@@ -49,7 +50,6 @@ pub trait DeltaContext {
 /// are performed exclusively by the engine. The CRDT only manages its own
 /// data structure using `Dot` values supplied by the engine.
 pub trait DeltaCrdt: Send + Sync + 'static {
-
     /// The application-level operation type.
     type Op: Send + Sync + 'static;
 
@@ -94,11 +94,7 @@ pub trait DeltaCrdt: Send + Sync + 'static {
     // ── Serialisation ───────────────────────────────────────────────────
 
     fn encode_delta(delta: &Self::Delta) -> Vec<u8>;
-    fn decode_delta(
-        bytes: &[u8],
-    ) -> Result<Self::Delta, Box<dyn std::error::Error + Send + Sync>>;
+    fn decode_delta(bytes: &[u8]) -> Result<Self::Delta, anyhow::Error>;
     fn encode_op(op: &Self::Op) -> Vec<u8>;
-    fn decode_op(
-        bytes: &[u8],
-    ) -> Result<Self::Op, Box<dyn std::error::Error + Send + Sync>>;
+    fn decode_op(bytes: &[u8]) -> Result<Self::Op, anyhow::Error>;
 }
