@@ -5,7 +5,6 @@
 //! All DVV operations happen here; the CRDT only sees typed `Dot` values.
 //! GC/membership concerns are delegated to dedicated layers.
 
-use core::result::Result::Ok;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -16,11 +15,12 @@ use tracing::{debug, warn};
 use crate::common::{Counter, NodeId};
 use crate::crdt::{DeltaContext, DeltaCrdt};
 use crate::network::dissemination::SharedDissemination;
-use crate::gc::storage::S3GcStorage;
 use crate::gc::{GcConfig, GcCoordinator};
-use crate::logical_clocks::dot_version_vector::{Dot, DotVersionVector};
+use crate::logical_clocks::dot_version_vector::DotVersionVector;
 use crate::peers::peer_registry::PeerRegistry;
 use crate::storage::s3_client::S3Client;
+use crate::engine::PullResponse;
+use crate::engine::engine_inner::EngineInner;
 
 pub enum CrdtEngineRequest<C: DeltaCrdt> {
     DoPullRound,
@@ -35,156 +35,12 @@ pub enum CrdtEngineRequest<C: DeltaCrdt> {
     ObserveEpochChange,
 }
 
-// ── Inner state (behind the mutex) ─────────────────────────────────────
-
-struct EngineInner<C: DeltaCrdt> {
-    node_id: NodeId,
-    crdt_id: String,
-    crdt: C,
-    dvv: DotVersionVector,
-    dissemination: SharedDissemination<C>,
-    gc: GcCoordinator<S3GcStorage>,
-}
-
-impl<C: DeltaCrdt> EngineInner<C> {
-    fn client_operation(&mut self, op: C::Op) {
-        debug!(node_id = %self.node_id, crdt_id = %self.crdt_id, "applying local op");
-
-        // 1. Mint a new dot.
-        self.dvv.event();
-        let dot = Dot::new(self.dvv.dot.node_id.clone(), self.dvv.dot.counter);
-
-        // 2. Apply to CRDT.
-        self.crdt.apply_local(dot, op);
-    }
-
-    fn server_delta(&mut self, from_node: &NodeId, crdt_id: &str, payload: &[u8]) {
-        if crdt_id != self.crdt_id {
-            warn!(
-                expected = %self.crdt_id,
-                received = %crdt_id,
-                "ignoring delta for unknown CRDT"
-            );
-            return;
-        }
-        debug!(%from_node, %crdt_id, "merging remote delta");
-        self.handle_remote_delta(payload);
-    }
-
-    fn server_pull_request(
-        &mut self,
-        from_node: &NodeId,
-        crdt_id: &str,
-        knowledge: HashMap<NodeId, u64>,
-    ) {
-        if crdt_id != self.crdt_id {
-            warn!(
-                expected = %self.crdt_id,
-                received = %crdt_id,
-                "ignoring pull request for unknown CRDT"
-            );
-            return;
-        }
-        self.handle_pull_request(from_node, knowledge);
-    }
-
-    fn handle_remote_delta(&mut self, payload: &[u8]) {
-        let delta = match C::decode_delta(payload) {
-            Ok(d) => d,
-            Err(e) => {
-                warn!(%e, "failed to decode remote delta");
-                return;
-            }
-        };
-
-        // Merge CRDT state.
-        self.crdt.merge_delta(&delta);
-
-        // Merge causal context into DVV.
-        let (ctx, node, counter) = delta.causal_context();
-        let remote_dvv = DotVersionVector {
-            dot: Dot::new(node, counter),
-            context: ctx,
-        };
-        self.dvv.merge(&remote_dvv);
-    }
-
-    fn handle_pull_request(&mut self, from_node: &NodeId, remote_knowledge: HashMap<NodeId, u64>) {
-        debug!(%from_node, "received version vector");
-        let mut knowledge = HashMap::new();
-        knowledge.insert(from_node.clone(), remote_knowledge.clone());
-        self.gc.update_matrix_clock(&knowledge);
-
-        let our_knowledge = self.dvv.effective_map();
-        let communication_between_gc_replicas = self.gc.config.gc_replica && self
-            .gc
-            .registry
-            .get(from_node)
-            .map(|(_, gc_replica, _)| gc_replica)
-            .unwrap_or(false);
-
-        // Compute delta if we are ahead of the remote in any dimension.
-        let dvv_delta = self.dvv.delta_since(&remote_knowledge);
-        let delta_payload = if communication_between_gc_replicas || dvv_delta.dot.counter != 0 || !dvv_delta.context.is_empty() {
-            let state = self.crdt.delta_since(&remote_knowledge, &self.dvv);
-            Some(C::encode_delta(&state))
-        } else {
-            None
-        };
-
-        // Compute our VV request if the remote is ahead of us in any dimension.
-        let we_are_fully_ahead = remote_knowledge
-            .iter()
-            .all(|(node, &remote_ctr)| our_knowledge.get(node).copied().unwrap_or(0) >= remote_ctr);
-        let our_knowledge_request = if !we_are_fully_ahead {
-            Some(our_knowledge)
-        } else {
-            None
-        };
-
-        // Include the knowledge matrix if the requester is a GC replica, so they can make informed decisions about what to GC.
-        let knowledge_matrix = if self
-            .gc
-            .registry
-            .get(from_node)
-            .map(|(_, gc_replica, _)| gc_replica)
-            .unwrap_or(false)
-        {
-            self.gc.get_knowledge_matrix()
-        } else {
-            None
-        };
-
-        // Route both actions through the dissemination layer. The strategy
-        // decides whether to piggyback the VV request on the delta message.
-        self.dissemination.respond_to_pull_request(
-            from_node,
-            &self.crdt_id,
-            &self.node_id,
-            delta_payload,
-            self.gc.config.gc_replica,
-            knowledge_matrix,
-            our_knowledge_request,
-        );
-
-        debug!(%from_node, "version vector exchange complete");
-    }
-
-    fn do_pull_round(&self) {
-        let our_knowledge = self.dvv.effective_map();
-        self.dissemination.do_pull_round(
-            &self.node_id,
-            &self.crdt_id,
-            self.gc.config.gc_replica,
-            &our_knowledge,
-        );
-        debug!("pull round complete");
-    }
-}
 
 // ── Public engine ───────────────────────────────────────────────────────
-
 pub struct CrdtEngine<C: DeltaCrdt> {
+    node_id: NodeId,
+    crdt_id: String,
+    dissemination: SharedDissemination<C>,
     inner: Arc<Mutex<EngineInner<C>>>,
     rx: tokio::sync::mpsc::Receiver<CrdtEngineRequest<C>>,
 }
@@ -202,14 +58,14 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         let dvv = DotVersionVector::new(node_id.clone());
         let (client, config) = gc;
         let inner = EngineInner {
-            node_id,
-            crdt_id,
             crdt,
             dvv,
-            dissemination,
             gc: GcCoordinator::new(client, config, peer_registry),
         };
         CrdtEngine {
+            node_id,
+            crdt_id,
+            dissemination,
             inner: Arc::new(Mutex::new(inner)),
             rx
         }
@@ -222,7 +78,10 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             match request {
                 CrdtEngineRequest::DoPullRound => {
                     let inner = self.inner.lock().await;
-                    inner.do_pull_round();
+                    self.dissemination.do_pull_round(&self.node_id, 
+                        &self.crdt_id,
+                        inner.gc.config.gc_replica,
+                        &inner.dvv.effective_map());
                 },
                 CrdtEngineRequest::ClientOperation(op) => {
                     self.client_operation(op).await;
@@ -265,14 +124,14 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
 
     pub async fn start_gc_loops(&self, engine_tx: tokio::sync::mpsc::Sender<CrdtEngineRequest<C>>) -> Vec<JoinHandle<()>> {
         let inner = self.inner.lock().await;
-        let gc = inner.gc.clone();
-        drop(inner);
+        let initiate_interval = inner.gc.initiate_interval();
+        let observe_interval = inner.gc.observe_interval();
 
         let mut handles = Vec::new();
 
         {
             let eng_tx = engine_tx.clone();
-            if let Some(interval) = gc.initiate_interval() {
+            if let Some(interval) = initiate_interval {
                 handles.push(tokio::spawn(async move {
                     let mut ticker = tokio::time::interval(interval);
                     loop {
@@ -285,9 +144,8 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
 
         {
             let eng_tx = engine_tx.clone();
-            let interval = gc.observe_interval();
             handles.push(tokio::spawn(async move {
-                let mut ticker = tokio::time::interval(interval);
+                let mut ticker = tokio::time::interval(observe_interval);
                 loop {
                     ticker.tick().await;
                     let _ = eng_tx.send(CrdtEngineRequest::ObserveEpochChange).await;
@@ -319,20 +177,17 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
 
     /// Called when a client wants to perform a local write.
     async fn client_operation(&self, op: C::Op) {
-        let (dissemination, node_id, crdt_id, gc_replica, knowledge) = {
+        let (gc_replica, knowledge) = {
             let mut inner = self.inner.lock().await;
             inner.client_operation(op);
             (
-                Arc::clone(&inner.dissemination),
-                inner.node_id.clone(),
-                inner.crdt_id.clone(),
                 inner.gc.config.gc_replica,
                 inner.dvv.effective_map(),
             )
         };
         // Advertise the updated VV outside the lock so peers can compute what to send us.
-        dissemination
-            .push_version_vector(&node_id, &crdt_id, gc_replica, &knowledge)
+        self.dissemination
+            .push_version_vector(&self.node_id, &self.crdt_id, gc_replica, &knowledge)
             .await;
     }
 
@@ -344,24 +199,31 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         payload: Vec<u8>,
         knowledge_matrix: Option<HashMap<NodeId, HashMap<NodeId, u64>>>,
     ) {
-        let (dissemination, node_id, crdt_id, gc_replica, knowledge) = {
+        if crdt_id != self.crdt_id {
+            warn!(
+                expected = %self.crdt_id,
+                received = %crdt_id,
+                "ignoring delta for unknown CRDT"
+            );
+            return;
+        }
+
+        debug!(%from_node, %crdt_id, "merging remote delta");
+        let (gc_replica, knowledge) = {
             let mut inner = self.inner.lock().await;
-            inner.server_delta(&from_node, &crdt_id, &payload);
+            inner.handle_remote_delta(&payload);
             inner
                 .gc
                 .update_matrix_clock(&knowledge_matrix.unwrap_or_default());
             (
-                Arc::clone(&inner.dissemination),
-                inner.node_id.clone(),
-                inner.crdt_id.clone(),
                 inner.gc.config.gc_replica,
                 inner.dvv.effective_map(),
             )
         };
         // Merges are local state changes; push/hybrid strategies advertise
         // the updated VV so other peers can react.
-        dissemination
-            .on_post_merge(&node_id, &crdt_id, gc_replica, &knowledge)
+        self.dissemination
+            .on_post_merge(&self.node_id, &self.crdt_id, gc_replica, &knowledge)
             .await;
     }
 
@@ -372,41 +234,57 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         crdt_id: String,
         knowledge: HashMap<NodeId, u64>,
     ) {
-        self.inner
-            .lock()
-            .await
-            .server_pull_request(&from_node, &crdt_id, knowledge);
+        if crdt_id != self.crdt_id {
+            warn!(
+                expected = %self.crdt_id,
+                received = %crdt_id,
+                "ignoring pull request for unknown CRDT"
+            );
+            return;
+        }
+
+        let mut inner = self.inner.lock().await;
+        let PullResponse { delta_payload, knowledge_matrix, our_knowledge_request } = inner.server_pull_request(&from_node, knowledge);
+
+        // Route both actions through the dissemination layer. The strategy
+        // decides whether to piggyback the VV request on the delta message.
+        self.dissemination.respond_to_pull_request(
+            &from_node,
+            &self.crdt_id,
+            &self.node_id,
+            delta_payload,
+            inner.gc.config.gc_replica,
+            knowledge_matrix,
+            our_knowledge_request,
+        );
     }
 
     async fn observe_epoch_change(&self) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().await;
-        let node_id = inner.node_id.clone();
         let EngineInner {
             gc,
             crdt,
             dvv,
             ..
         } = &mut *inner;
-        gc.observe_epoch_change(&node_id, crdt, dvv)
+        gc.observe_epoch_change(&self.node_id, crdt, dvv)
             .await
     }
 
     async fn initiate_gc(&self) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().await;
-        let node_id = inner.node_id.clone();
         let EngineInner {
             gc,
             crdt,
             dvv,
             ..
         } = &mut *inner;
-        gc.initiate_gc(&node_id, crdt, dvv)
+        gc.initiate_gc(&self.node_id, crdt, dvv)
             .await
     }
 
     async fn new_replica_bootstrap(&self) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().await;
-        let node_id = inner.node_id.clone();
         let EngineInner {
             gc,
             crdt,
@@ -414,7 +292,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             ..
         } = &mut *inner;
         let result = gc
-            .new_replica_bootstrap(&node_id, crdt, dvv)
+            .new_replica_bootstrap(&self.node_id, crdt, dvv)
             .await;
         result 
     }

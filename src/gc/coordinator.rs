@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use crate::common::{Counter, NodeId};
 use crate::crdt::DeltaCrdt;
-use crate::discovery::list_live_node_ids;
+use crate::discovery;
 use crate::gc::storage::{EpochState, GcStorage, S3GcStorage};
 use crate::gc::GcConfig;
 use crate::logical_clocks::dot_version_vector::{self, CausalContext};
@@ -340,7 +340,7 @@ struct DiscoveryMembershipProvider {
 #[async_trait]
 impl MembershipProvider for DiscoveryMembershipProvider {
     async fn live_members(&self) -> anyhow::Result<Vec<NodeId>> {
-        let regs = list_live_node_ids(&self.client, &self.bucket)
+        let regs = discovery::list_live_node_ids(&self.client, &self.bucket)
             .await
             .context("failed to fetch live members from discovery")?;
         let mut members: Vec<NodeId> = regs;
