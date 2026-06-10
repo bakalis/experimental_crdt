@@ -59,7 +59,7 @@ struct Cli {
     s3_secret_key: String,
 
     /// How often (in seconds) to poll S3 for peer changes.
-    #[arg(long, default_value = "10")]
+    #[arg(long, default_value = "3")]
     discovery_interval_secs: u64,
 
     /// Seconds after which a registration without heartbeat refresh

@@ -153,9 +153,6 @@ async fn run_connection(
     // Tear down sibling tasks when reader exits.
     writer_handle.abort();
 
-    // Remove peer from registry — connection has ended.
-    registry.remove(&remote_node_id);
-
     match reader_result {
         Ok(()) => Ok(remote_node_id),
         Err(e) => Err(e),
