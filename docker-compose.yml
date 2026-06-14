@@ -46,7 +46,9 @@ services:
 
   # GC replica — S1
   gc-server-1:
-    build: .
+    build:
+      context: .
+      dockerfile: server.dockerfile
     image: crdt-server:latest
     restart: unless-stopped
     networks:
@@ -489,6 +491,229 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+
+  gc-client-1:
+    build:
+      context: .
+      dockerfile: client.dockerfile
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: gc-server-1:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - gc-server-1
+
+  gc-client-2:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: gc-server-2:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - gc-server-2
+
+  gc-client-3:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: gc-server-3:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - gc-server-3
+
+  gc-client-4:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: gc-server-4:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - gc-server-4
+
+  gc-client-5:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: gc-server-5:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - gc-server-5
+
+  normal-client-1:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-1:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-1
+
+  normal-client-2:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-2:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-2
+
+  normal-client-3:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-3:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-3
+
+  normal-client-4:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-4:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-4
+
+  normal-client-5:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-5:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-5
+
+  normal-client-6:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-6:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-6
+
+  normal-client-7:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-7:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-7
+
+  normal-client-8:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-8:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-8
+
+  normal-client-9:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-9:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-9
+
+  normal-client-10:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-10:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-10
+
+  normal-client-11:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-11:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-11
+
+  normal-client-12:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-12:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-12
+
+  normal-client-13:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-13:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-13
+
+  normal-client-14:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-14:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-14
+
+  normal-client-15:
+    image: crdt-client:latest
+    networks:
+      - crdt-net
+    environment:
+      SERVER_ADDR: normal-server-15:9100
+      TOTAL_REQUESTS: 50
+      SLEEP_MS: 0
+    depends_on:
+      - normal-server-15
 
 volumes:
   minio-data:

@@ -156,7 +156,6 @@ async fn run_bench(
         latencies.push(t0.elapsed());
         count += 1;
         if sleep_ms > 0 {
-            println!("Sleeping...");
             tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
         }
     }
