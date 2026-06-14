@@ -6,7 +6,7 @@ x-s3-env: &s3-env
   S3_REGION: ${S3_REGION}
   S3_ACCESS_KEY: ${AWS_ACCESS_KEY_ID}
   S3_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY}
-  HOST_IP: ${HOST_IP}
+  METRICS_FILE_PATH: ${METRICS_FILE_PATH}
 
 services:
   minio:
@@ -59,6 +59,8 @@ services:
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-1,normal-server-5,normal-server-6,normal-server-9,normal-server-11,normal-server-15,gc-server-2,gc-server-3,gc-server-4,gc-server-5
       GC_REPLICA: "true"
+    volumes:
+      - ./logs/gc_server_1/:/logs/
     ports:
       - "9110:9000"
       - "9111:9100"
@@ -80,6 +82,8 @@ services:
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-1,normal-server-2,normal-server-7,normal-server-10,normal-server-11,normal-server-12,gc-server-1,gc-server-3,gc-server-4,gc-server-5
       GC_REPLICA: "true"
+    volumes:
+      - ./logs/gc_server_2/:/logs/
     ports:
       - "9120:9000"
       - "9121:9100"
@@ -101,6 +105,8 @@ services:
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-2,normal-server-3,normal-server-6,normal-server-8,normal-server-12,normal-server-13,gc-server-1,gc-server-2,gc-server-4,gc-server-5
       GC_REPLICA: "true"
+    volumes:
+      - ./logs/gc_server_3/:/logs/
     ports:
       - "9130:9000"
       - "9131:9100"
@@ -122,6 +128,8 @@ services:
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-3,normal-server-4,normal-server-7,normal-server-9,normal-server-13,normal-server-14,gc-server-1,gc-server-2,gc-server-3,gc-server-5
       GC_REPLICA: "true"
+    volumes:
+      - ./logs/gc_server_4/:/logs/
     ports:
       - "9140:9000"
       - "9141:9100"
@@ -143,6 +151,8 @@ services:
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-4,normal-server-5,normal-server-8,normal-server-10,normal-server-14,normal-server-15,gc-server-1,gc-server-2,gc-server-3,gc-server-4
       GC_REPLICA: "true"
+    volumes:
+      - ./logs/gc_server_5/:/logs/
     ports:
       - "9150:9000"
       - "9151:9100"
@@ -163,6 +173,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-2,normal-server-15,gc-server-1,gc-server-2
+    volumes:
+      - ./logs/normal_server_1/:/logs/
     ports:
       - "9210:9000"
       - "9211:9100"
@@ -183,6 +195,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-1,normal-server-3,gc-server-2,gc-server-3
+    volumes:
+      - ./logs/normal_server_2/:/logs/
     ports:
       - "9220:9000"
       - "9221:9100"
@@ -203,6 +217,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-2,normal-server-4,gc-server-3,gc-server-4
+    volumes:
+      - ./logs/normal_server_3/:/logs/
     ports:
       - "9230:9000"
       - "9231:9100"
@@ -223,6 +239,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-3,normal-server-5,gc-server-4,gc-server-5
+    volumes:
+      - ./logs/normal_server_4/:/logs/
     ports:
       - "9240:9000"
       - "9241:9100"
@@ -243,6 +261,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-4,normal-server-6,gc-server-1,gc-server-5
+    volumes:
+      - ./logs/normal_server_5/:/logs/
     ports:
       - "9250:9000"
       - "9251:9100"
@@ -263,6 +283,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-5,normal-server-7,gc-server-1,gc-server-3
+    volumes:
+      - ./logs/normal_server_6/:/logs/
     ports:
       - "9260:9000"
       - "9261:9100"
@@ -283,6 +305,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-6,normal-server-8,gc-server-2,gc-server-4
+    volumes:
+      - ./logs/normal_server_7/:/logs/
     ports:
       - "9270:9000"
       - "9271:9100"
@@ -303,6 +327,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-7,normal-server-9,gc-server-3,gc-server-5
+    volumes:
+      - ./logs/normal_server_8/:/logs/
     ports:
       - "9280:9000"
       - "9281:9100"
@@ -323,6 +349,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-8,normal-server-10,gc-server-1,gc-server-4
+    volumes:
+      - ./logs/normal_server_9/:/logs/
     ports:
       - "9290:9000"
       - "9291:9100"
@@ -343,6 +371,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-9,normal-server-11,gc-server-2,gc-server-5
+    volumes:
+      - ./logs/normal_server_10/:/logs/
     ports:
       - "9300:9000"
       - "9301:9100"
@@ -363,6 +393,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-10,normal-server-12,gc-server-1,gc-server-2
+    volumes:
+      - ./logs/normal_server_11/:/logs/
     ports:
       - "9310:9000"
       - "9311:9100"
@@ -383,6 +415,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-11,normal-server-13,gc-server-2,gc-server-3
+    volumes:
+      - ./logs/normal_server_12/:/logs/
     ports:
       - "9320:9000"
       - "9321:9100"
@@ -403,6 +437,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-12,normal-server-14,gc-server-3,gc-server-4
+    volumes:
+      - ./logs/normal_server_13/:/logs/
     ports:
       - "9330:9000"
       - "9331:9100"
@@ -423,6 +459,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-13,normal-server-15,gc-server-4,gc-server-5
+    volumes:
+      - ./logs/normal_server_14/:/logs/
     ports:
       - "9340:9000"
       - "9341:9100"
@@ -443,6 +481,8 @@ services:
       LISTEN_PORT: "9000"
       CLIENT_PORT: "9100"
       DISCOVERY_CONNECT_NODE_IDS: normal-server-1,normal-server-14,gc-server-1,gc-server-5
+    volumes:
+      - ./logs/normal_server_15/:/logs/
     ports:
       - "9350:9000"
       - "9351:9100"

@@ -89,14 +89,17 @@ struct Cli {
     /// Interval in seconds for periodic cleanup of old epoch entries.
     #[arg(long, default_value = "60")]
     gc_cleanup_interval_secs: u64,
+
+    #[arg(long, env = "METRICS_FILE_PATH")]
+    metrics_path: String,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    logging::initialize_logging();
     dotenv().ok();
 
     let cli = Cli::parse();
+    logging::initialize_logging(cli.metrics_path.clone());
     let node_name = cli.name.unwrap_or_else(|| cli.listen_host.to_string());
     let connect_node_ids: Option<HashSet<String>> = cli
         .discovery_connect_node_ids
