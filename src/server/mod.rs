@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tokio::task::JoinHandle;
 use tracing::{info, error};
+use tokio::signal::unix::{signal, SignalKind};
 
 use crate::server::types::{CrdtType, EngineType, OutboundTasks};
 use crate::network::connection;
@@ -38,6 +39,13 @@ pub struct Server {
     registry: PeerRegistry,
     discovery: Arc<Discovery>,
     outbound_tasks: Arc<Mutex<OutboundTasks>>,
+}
+
+async fn shutdown_signal() {
+    let mut sigterm = signal(SignalKind::terminate())
+        .expect("failed to install SIGTERM handler");
+
+    sigterm.recv().await;
 }
 
 impl Server {
@@ -122,6 +130,10 @@ impl Server {
                 // TODO: also handle all other shutdown signals (SIGINT, SIGTERM, etc.)
                 // and do graceful shutdown.
                 _ = tokio::signal::ctrl_c() => {
+                    self.handle_shutdown(engine_tx.clone(), &handles, prefix).await?;
+                    return Ok(());
+                }
+                _ = shutdown_signal() => {
                     self.handle_shutdown(engine_tx.clone(), &handles, prefix).await?;
                     return Ok(());
                 }
