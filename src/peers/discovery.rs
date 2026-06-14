@@ -195,15 +195,17 @@ impl Discovery {
         let body = serde_json::to_vec_pretty("")?;
 
         let current_keys = self.client.list_object_keys(&self.config.bucket, &registration_key_prefix(&self.node_id)).await?;
+        
+        self.client
+            .put_object(&self.config.bucket, &key, body, "application/json")
+            .await?;
+
         for old_key in current_keys {
             if let Err(e) = self.client.delete_object(&self.config.bucket, &old_key).await {
                 warn!(old_key, %e, "failed to remove previous registration key");
             }
         }
 
-        self.client
-            .put_object(&self.config.bucket, &key, body, "application/json")
-            .await?;
 
         debug!(
             node_id = %self.node_id,
