@@ -107,26 +107,12 @@ pub async fn list_live_registrations(
     let keys = client
         .list_object_keys(bucket, DISCOVERY_NODES_PREFIX)
         .await?;
-    let now = Utc::now();
     let mut by_node: HashMap<NodeId, NodeRegistration> = HashMap::new();
 
     for key in &keys {
         match parse_registration_key(key) {
-            Ok(reg_key) if reg_key.expires_at > now => {
-                let replace = by_node
-                    .get(&reg_key.node_id)
-                    .map(|existing| reg_key.expires_at > existing.expires_at)
-                    .unwrap_or(true);
-                if replace {
-                    by_node.insert(reg_key.node_id.clone(), reg_key);
-                }
-            }
             Ok(reg_key) => {
-                debug!(
-                    node_id = %reg_key.node_id,
-                    expires_at = %reg_key.expires_at,
-                    "ignoring expired registration key"
-                );
+                by_node.insert(reg_key.node_id.clone(), reg_key);
             }
             Err(e) => {
                 warn!(key, %e, "failed to parse peer registration key");
@@ -195,17 +181,11 @@ impl Discovery {
         let body = serde_json::to_vec_pretty("")?;
 
         let current_keys = self.client.list_object_keys(&self.config.bucket, &registration_key_prefix(&self.node_id)).await?;
-        
-        self.client
-            .put_object(&self.config.bucket, &key, body, "application/json")
-            .await?;
-
-        for old_key in current_keys {
-            if let Err(e) = self.client.delete_object(&self.config.bucket, &old_key).await {
-                warn!(old_key, %e, "failed to remove previous registration key");
-            }
+        if current_keys.is_empty() {
+            self.client
+                .put_object(&self.config.bucket, &key, body, "application/json")
+                .await?;
         }
-
 
         debug!(
             node_id = %self.node_id,
