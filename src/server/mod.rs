@@ -22,21 +22,19 @@ use crate::storage::s3_client::S3Client;
 
 // ── Server ──────────────────────────────────────────────────────────────
 pub struct ServerConfig {
-    pub listen_addr: SocketAddr,
-    pub advertise_addr: SocketAddr,
+    pub listen_host: String,
+    pub listen_port: String,
     pub node_name: String,
     pub gc_replica: bool,
-    pub client_addr: Option<SocketAddr>,
+    pub client_port: Option<String>,
 }
 
 pub struct Server {
     node_id: String,
     node_name: String,
     gc_replica: bool,
-    listen_addr: SocketAddr,
-    /// Optional address for the client operation listener (JSON-over-TCP).
-    advertise_addr: SocketAddr,
-    client_addr: Option<SocketAddr>,
+    listen_port: String,
+    client_port: Option<String>,
     registry: PeerRegistry,
     discovery: Arc<Discovery>,
     outbound_tasks: Arc<Mutex<OutboundTasks>>,
@@ -62,7 +60,8 @@ impl Server {
             discovery_config.clone(),
             node_id.clone(),
             server_config.node_name.clone(),
-            server_config.advertise_addr,
+            server_config.listen_host.clone(),
+            server_config.listen_port.clone()
         )
         .await?;
 
@@ -70,9 +69,8 @@ impl Server {
             node_id,
             node_name: server_config.node_name.to_string(),
             gc_replica: server_config.gc_replica,
-            listen_addr: server_config.listen_addr,
-            advertise_addr: server_config.advertise_addr,
-            client_addr: server_config.client_addr,
+            listen_port: server_config.listen_port,
+            client_port: server_config.client_port,
             registry: PeerRegistry::new(),
             discovery: Arc::new(discovery),
             outbound_tasks: Arc::new(Mutex::new(OutboundTasks::new())),

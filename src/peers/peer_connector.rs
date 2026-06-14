@@ -5,7 +5,7 @@ use tracing::info;
 
 use crate::network::connection;
 use crate::peers::peer_registry::PeerRegistry;
-use crate::common::NodeId;
+use crate::common::{self, NodeId};
 use crate::proto::Envelope;
 use crate::server::types::OutboundTasks;
 
@@ -38,21 +38,23 @@ impl PeerConnector {
         }
     }
 
-    pub async fn add_peer(&self, node_id: NodeId, addr: SocketAddr) {
+    pub async fn add_peer(&self, node_id: NodeId, addr: String) -> anyhow::Result<()> {
         let mut tasks = self.outbound_tasks.lock().await;
         if tasks.contains_key(&node_id) {
-            return;
+            return Ok(()); // already connected
         }
+        let address = common::lookup(&addr).await?;
         let handle = connection::spawn_outbound(
-            addr,
+            address,
             self.node_id.clone(),
             self.node_name.clone(),
             self.gc_replica,
             self.registry.clone(),
             self.app_tx.clone(),
         );
-        tasks.insert(node_id, (addr, handle));
+        tasks.insert(node_id, (address, handle));
         info!(%addr, "outbound peer task spawned");
+        Ok(())
     }
 
     pub async fn remove_peer(&self, node_id: NodeId) {

@@ -5,9 +5,12 @@ use prost::Message as _;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
+
 // Inline the proto types needed (same as the server).
 #[path = "../proto/mod.rs"]
 mod proto;
+#[path = "../common/mod.rs"]
+mod common;
 
 use proto::{proto_client_command, ProtoClientCommand};
 
@@ -16,7 +19,7 @@ use proto::{proto_client_command, ProtoClientCommand};
 struct Cli {
     /// Address of the server's client listener.
     #[arg(long)]
-    addr: SocketAddr,
+    addr: String,
 
     #[command(subcommand)]
     command: Command,
@@ -50,7 +53,9 @@ async fn main() -> anyhow::Result<()> {
     });
     let payload = ProtoClientCommand { command }.encode_to_vec();
 
-    let stream = TcpStream::connect(cli.addr).await?;
+    let addr: SocketAddr = common::lookup(&cli.addr).await?;
+
+    let stream = TcpStream::connect(addr).await?;
     let (mut read_half, mut write_half) = stream.into_split();
 
     // Write 4-byte big-endian length prefix then payload.

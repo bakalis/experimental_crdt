@@ -1,4 +1,5 @@
-use std::net::SocketAddr;
+use core::net::SocketAddr;
+
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{info, warn, error};
 use tokio::task::JoinHandle;
@@ -36,16 +37,17 @@ pub async fn send_engine_request_and_wait_response(engine_tx: tokio::sync::mpsc:
     }
 }
 
-pub fn start_client_handle(client_addr: Option<SocketAddr>, engine_tx: tokio::sync::mpsc::Sender<CrdtEngineRequest<CrdtType>>) -> Option<JoinHandle<()>> {
-    client_addr.map(|addr| tokio::spawn(async move {
-        let listener = match TcpListener::bind(addr).await {
+pub fn start_client_handle(client_port: Option<String>, engine_tx: tokio::sync::mpsc::Sender<CrdtEngineRequest<CrdtType>>) -> Option<JoinHandle<()>> {
+    client_port.map(|port| tokio::spawn(async move {
+        let client_addr: SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();  
+        let listener = match TcpListener::bind(client_addr).await {
             Ok(l) => l,
             Err(e) => {
-                error!(%addr, %e, "failed to bind client listener");
+                error!(%client_addr, %e, "failed to bind client listener");
                 return;
             }
         };
-        info!(%addr, "client op listener started");
+        info!(%client_addr, "client op listener started");
         loop {
             match listener.accept().await {
                 Ok((stream, peer)) => {

@@ -1,7 +1,6 @@
 //! S3-backed peer discovery and live-membership semantics.
 
 use std::collections::{HashMap, HashSet};
-use std::net::SocketAddr;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -34,7 +33,7 @@ pub struct DiscoveryConfig {
 pub struct NodeRegistration {
     pub node_id: NodeId,
     pub node_name: String,
-    pub addr: SocketAddr,
+    pub addr: String,
     pub gc_replica: bool,
     pub expires_at: DateTime<Utc>,
 }
@@ -46,7 +45,7 @@ fn registration_key(
     node_id: &NodeId,
     expires_at: DateTime<Utc>,
     gc_replica: bool,
-    addr: SocketAddr,
+    addr: String,
 ) -> String {
     format!(
         "{DISCOVERY_NODES_PREFIX}{node_id}__{}__{addr}__{}.json",
@@ -82,10 +81,10 @@ fn parse_registration_key(key: &str) -> anyhow::Result<NodeRegistration> {
         "0" => false,
         other => anyhow::bail!("invalid gc_replica marker `{other}` in discovery key"),
     };
-    let addr: SocketAddr = parts
+    let addr: String = parts
         .next()
         .ok_or_else(|| anyhow::anyhow!("missing socket address in discovery key"))?
-        .parse()?;
+        .to_string();
     let expires_millis: i64 = parts
         .next()
         .ok_or_else(|| anyhow::anyhow!("missing ttl timestamp in discovery key"))?
@@ -156,7 +155,8 @@ pub struct Discovery {
     config: DiscoveryConfig,
     node_id: NodeId,
     _node_name: String,
-    advertise_addr: SocketAddr,
+    listen_host: String,
+    listen_port: String,
 }
 
 impl Discovery {
@@ -165,7 +165,8 @@ impl Discovery {
         config: DiscoveryConfig,
         node_id: NodeId,
         _node_name: String,
-        advertise_addr: SocketAddr,
+        listen_host: String,
+        listen_port: String,
     ) -> anyhow::Result<Self> {
         client.ensure_bucket(&config.bucket).await?;
 
@@ -174,7 +175,8 @@ impl Discovery {
             config,
             node_id,
             _node_name,
-            advertise_addr,
+            listen_host,
+            listen_port
         })
     }
 
@@ -183,11 +185,12 @@ impl Discovery {
     pub async fn register(&self) -> anyhow::Result<()> {
         let ttl = chrono::Duration::from_std(self.config.registration_ttl)?;
         let expires_at = Utc::now() + ttl;
+        let listen_addr = format!("{}:{}", self.listen_host, self.listen_port);
         let key = registration_key(
             &self.node_id,
             expires_at,
             self.config.gc_replica,
-            self.advertise_addr,
+            listen_addr.clone(),
         );
         let body = serde_json::to_vec_pretty("")?;
 
@@ -204,7 +207,7 @@ impl Discovery {
 
         debug!(
             node_id = %self.node_id,
-            addr = %self.advertise_addr,
+            addr = %listen_addr,
             expires_at = %expires_at,
             gc_replica = self.config.gc_replica,
             "registered / heartbeat refreshed in S3"
@@ -273,10 +276,10 @@ impl Discovery {
                 }
 
                 let registration = desired.get(node_id).unwrap();
-                let addr = registration.addr;
+                let addr = registration.addr.clone();
 
                 info!(%node_id, %addr, "discovered new peer — connecting");
-                connector.add_peer(node_id.to_string(), addr).await;
+                let _ = connector.add_peer(node_id.to_string(), addr).await;
             }
 
             for node_id in current.difference(&desired_ids) {

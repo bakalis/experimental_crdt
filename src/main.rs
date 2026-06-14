@@ -10,23 +10,22 @@ mod storage;
 mod server;
 
 use clap::Parser;
+use core::option::Option;
 use std::time::Duration;
 use dotenvy::dotenv;
 use std::collections::HashSet;
-use std::net::SocketAddr;
 use crate::peers::discovery;
 
 /// CRDT replication server with S3-based peer discovery.
 #[derive(Parser, Debug)]
 #[command(version, about)]
 struct Cli {
-    /// Address this node listens on (e.g. 0.0.0.0:9000).
-    #[arg(short, long, default_value = "0.0.0.0:9000")]
-    listen: SocketAddr,
 
-    /// The address that *other* nodes should use to reach us.
-    #[arg(long)]
-    advertise: Option<SocketAddr>,
+    #[arg(long, default_value = "localhost")]
+    listen_host: String,
+
+    #[arg(long, default_value = "9000")]
+    listen_port: String,
 
     /// Optional human-readable node name.
     #[arg(short, long)]
@@ -35,7 +34,7 @@ struct Cli {
     /// Optional address for the client operation listener (protobuf-over-TCP).
     /// Clients connect and send length-prefixed protobuf `ProtoClientCommand` messages.
     #[arg(long)]
-    client_addr: Option<SocketAddr>,
+    client_port: Option<String>,
 
     // ── S3 / MinIO discovery ────────────────────────────────────
     /// S3-compatible endpoint URL (e.g. http://localhost:9000).
@@ -102,8 +101,7 @@ async fn main() -> anyhow::Result<()> {
     dotenv().ok();
 
     let cli = Cli::parse();
-    let node_name = cli.name.unwrap_or_else(|| cli.listen.to_string());
-    let advertise_addr = cli.advertise.unwrap_or(cli.listen);
+    let node_name = cli.name.unwrap_or_else(|| cli.listen_host.to_string());
     let connect_node_ids: Option<HashSet<String>> = cli
         .discovery_connect_node_ids
         .as_deref()
@@ -131,11 +129,11 @@ async fn main() -> anyhow::Result<()> {
     let gc_replica = cli.gc_replica;
 
     let server_config = server::ServerConfig {
-        listen_addr: cli.listen,
+        listen_host: cli.listen_host,
+        listen_port: cli.listen_port,
         gc_replica,
-        advertise_addr,
         node_name: node_name.clone(),
-        client_addr: cli.client_addr,
+        client_port: cli.client_port,
     };
 
     let gc_config = gc::GcConfig {

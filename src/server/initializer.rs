@@ -35,17 +35,17 @@ pub async fn start_background_tasks(
         handles.push(dissemination_handle);
     }
 
-    if let Some(client_handle) = client_requests_handler::start_client_handle(server.client_addr, engine_tx.clone()) {
+    if let Some(client_handle) = client_requests_handler::start_client_handle(server.client_port.clone(), engine_tx.clone()) {
         handles.push(client_handle);
     }
 
     let discovery_handle = start_discovery(server, app_tx).await?;
     handles.push(discovery_handle);
+    let listen_addr: SocketAddr = format!("0.0.0.0:{}", server.listen_port).parse()?;
 
-    let listener = TcpListener::bind(server.listen_addr).await?;
+    let listener = TcpListener::bind(listen_addr).await?;
     info!(
-        addr = %server.listen_addr,
-        advertise = %server.advertise_addr,
+        addr = %listen_addr,
         node_id = %server.node_id,
         "listening"
     );
