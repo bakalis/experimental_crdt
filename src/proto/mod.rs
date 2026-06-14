@@ -169,7 +169,7 @@ pub mod proto_or_set_op {
 /// Framing: 4-byte big-endian length prefix followed by the prost-encoded bytes.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ProtoClientCommand {
-    #[prost(oneof = "proto_client_command::Command", tags = "1, 2, 3, 4, 5")]
+    #[prost(oneof = "proto_client_command::Command", tags = "1, 2, 3, 4, 5, 6")]
     pub command: ::core::option::Option<proto_client_command::Command>,
 }
 pub mod proto_client_command {
@@ -185,6 +185,8 @@ pub mod proto_client_command {
         PrintInternals(bool),
         #[prost(bool, tag = "5")]
         PrintMatrix(bool),
+        #[prost(bool, tag = "6")]
+        RemoveRandom(bool),
     }
 }
 // @@protoc_insertion_point(module)

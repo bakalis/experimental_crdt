@@ -8,6 +8,7 @@
 pub mod or_set;
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use crate::common::{Counter, NodeId};
 use crate::logical_clocks::dot_version_vector::{Dot, DotVersionVector};
@@ -51,7 +52,7 @@ pub trait DeltaContext {
 /// data structure using `Dot` values supplied by the engine.
 pub trait DeltaCrdt: Send + Sync + 'static {
     /// The application-level operation type.
-    type Op: Send + Sync + 'static;
+    type Op: Debug + Send + Sync + 'static;
 
     /// The delta/state type — carries both CRDT data and causal metadata.
     type Delta: Send + Sync + Clone + DeltaContext + 'static;

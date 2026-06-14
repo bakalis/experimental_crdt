@@ -29,6 +29,7 @@ pub enum CrdtEngineRequest<C: DeltaCrdt> {
     PrintState(tokio::sync::oneshot::Sender<String>),
     PrintInternals(tokio::sync::oneshot::Sender<String>),
     PrintMatrix(tokio::sync::oneshot::Sender<String>),
+    GetRandomElement(tokio::sync::oneshot::Sender<String>),
     DeltaRequest(NodeId, String, HashMap<NodeId, u64>),
     DeltaResponse(NodeId, String, Vec<u8>, Option<HashMap<NodeId, HashMap<NodeId, u64>>>),
     DeregistrationState(tokio::sync::oneshot::Sender<(Counter, Vec<u8>)>),
@@ -86,6 +87,11 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
                 },
                 CrdtEngineRequest::ClientOperation(op) => {
                     self.client_operation(op).await;
+                },
+                CrdtEngineRequest::GetRandomElement(resp_tx) => {
+                    let random_element = self.get_random_element().await;
+                    let element = random_element.unwrap_or_else(|| "error: empty crdt".to_string());
+                    let _ = resp_tx.send(element);
                 },
                 CrdtEngineRequest::PrintState(resp_tx) => {
                     let state = self.print_state().await;

@@ -76,6 +76,15 @@ pub fn start_client_handle(client_port: Option<String>, engine_tx: tokio::sync::
                                     Some(proto::proto_client_command::Command::Remove(value)) => {
                                         send_engine_request(eng_tx.clone(), CrdtEngineRequest::ClientOperation(OrSetOp::Remove(value))).await
                                     }
+                                    Some(proto::proto_client_command::Command::RemoveRandom(_)) => {
+                                        let (response_tx, response_rx) = tokio::sync::oneshot::channel();
+                                        let random_element = send_engine_request_and_wait_response(eng_tx.clone(), CrdtEngineRequest::GetRandomElement(response_tx), response_rx).await;
+                                        if random_element.starts_with("error:") {
+                                            random_element
+                                        } else {
+                                            send_engine_request(eng_tx.clone(), CrdtEngineRequest::ClientOperation(OrSetOp::Remove(random_element))).await
+                                        }
+                                    }
                                     Some(proto::proto_client_command::Command::PrintState(_)) => {
                                         let (response_tx, response_rx) = tokio::sync::oneshot::channel();
                                         send_engine_request_and_wait_response(eng_tx.clone(), CrdtEngineRequest::PrintState(response_tx), response_rx).await

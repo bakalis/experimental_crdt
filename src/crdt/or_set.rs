@@ -4,7 +4,7 @@
 //! Each element is tagged with a `Dot` supplied by the engine.
 
 use std::collections::{HashMap, HashSet};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
 use prost::Message as _;
@@ -60,7 +60,7 @@ pub struct OrSet<E: Clone + Eq + Hash + Debug> {
     tombstones: HashMap<Dot, Dot>,
 }
 
-impl<E: Clone + Eq + Hash + Debug> Default for OrSet<E> {
+impl<E: Clone + Eq + Hash + Display + Debug> Default for OrSet<E> {
     fn default() -> Self {
         Self::new()
     }
@@ -102,7 +102,7 @@ impl<E: Clone + Eq + Hash + Debug> OrSet<E> {
 
 impl<E> DeltaCrdt for OrSet<E>
 where
-    E: Clone + Eq + Hash + Debug + ElementCodec + Send + Sync + 'static,
+    E: Clone + Eq + Hash + Display + Debug + ElementCodec + Send + Sync + 'static,
 {
     type Op = OrSetOp<E>;
     type Delta = OrSetDelta<E>;
@@ -154,7 +154,7 @@ where
     }
 
     fn get_random_element(&self) -> Option<String> {
-        self.elements().next().cloned().map(|e| format!("{:?}", e))
+        self.elements().next().cloned().map(|e| format!("{e}"))
     }
 
     fn print_state(&self) -> String {

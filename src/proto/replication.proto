@@ -120,5 +120,6 @@ message ProtoClientCommand {
     bool   print_state     = 3;
     bool   print_internals = 4;
     bool   print_matrix    = 5;
+    bool   remove_random   = 6;
   }
 }
