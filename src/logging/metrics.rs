@@ -6,6 +6,6 @@
 #[macro_export]
 macro_rules! metric {
     ($($key:ident = $val:expr),+ $(,)?) => {
-        tracing::info!(target: "metrics", $($key = $val),+);
+        tracing::trace!(target: "metrics", $($key = $val),+);
     };
 }

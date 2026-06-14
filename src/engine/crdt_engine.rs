@@ -12,10 +12,11 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tracing::{debug, warn};
 
+use crate::metric;
 use crate::common::{Counter, NodeId};
 use crate::crdt::{DeltaContext, DeltaCrdt};
 use crate::network::dissemination::SharedDissemination;
-use crate::gc::{GcConfig, GcCoordinator};
+use crate::gc::{GcConfig, GcCoordinator, coordinator::GcInitiationAbortReason};
 use crate::logical_clocks::dot_version_vector::DotVersionVector;
 use crate::peers::peer_registry::PeerRegistry;
 use crate::storage::s3_client::S3Client;
@@ -259,7 +260,8 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         );
     }
 
-    async fn observe_epoch_change(&self) -> anyhow::Result<()> {
+    async fn observe_epoch_change(&self) -> anyhow::Result<bool> {
+        let start_millis = std::time::Instant::now();
         let mut inner = self.inner.lock().await;
         let EngineInner {
             gc,
@@ -267,11 +269,21 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             dvv,
             ..
         } = &mut *inner;
-        gc.observe_epoch_change(&self.node_id, crdt, dvv)
-            .await
+        let result = gc.observe_epoch_change(&self.node_id, crdt, dvv)
+            .await;
+
+        let epoch_changed = match &result {
+            Ok(changed) => *changed,
+            Err(_) => false,
+        };
+        metric!(event = "gc_observe_epoch_change",
+            duration_millis = start_millis.elapsed().as_millis() as u64,
+            epoch_changed = epoch_changed);
+        result
     }
 
-    async fn initiate_gc(&self) -> anyhow::Result<()> {
+    async fn initiate_gc(&self) -> anyhow::Result<Option<GcInitiationAbortReason>> {
+        let start_millis = std::time::Instant::now();
         let mut inner = self.inner.lock().await;
         let EngineInner {
             gc,
@@ -279,11 +291,25 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             dvv,
             ..
         } = &mut *inner;
-        gc.initiate_gc(&self.node_id, crdt, dvv)
-            .await
+        let result = gc.initiate_gc(&self.node_id, crdt, dvv)
+            .await;
+        let (abort, abort_reason) = match &result {
+            Ok(reason) => match reason {
+                Some(r) => (true, format!("{:?}", r)),
+                Option::None => (false, "None".to_string()),
+            },
+            Err(_) => (true, "None".to_string())
+        };
+
+        metric!(event = "gc_initiate",
+            duration_millis = start_millis.elapsed().as_millis() as u64,
+            abort = abort,
+            abort_reason = abort_reason);
+        result
     }
 
     async fn new_replica_bootstrap(&self) -> anyhow::Result<()> {
+        let start_millis = std::time::Instant::now();
         let mut inner = self.inner.lock().await;
         let EngineInner {
             gc,
@@ -294,6 +320,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         let result = gc
             .new_replica_bootstrap(&self.node_id, crdt, dvv)
             .await;
+        metric!(event = "new_replica_bootstrap", duration_millis = start_millis.elapsed().as_millis() as u64);
         result 
     }
 

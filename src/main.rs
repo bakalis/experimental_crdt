@@ -59,7 +59,7 @@ struct Cli {
     s3_secret_key: String,
 
     /// How often (in seconds) to poll S3 for peer changes.
-    #[arg(long, default_value = "3")]
+    #[arg(long, default_value = "30")]
     discovery_interval_secs: u64,
 
     /// Seconds after which a registration without heartbeat refresh
@@ -79,16 +79,12 @@ struct Cli {
     gc_prefix: String,
 
     /// Interval in seconds for periodic GC initiation attempts.
-    #[arg(long, default_value = "30")]
+    #[arg(long, default_value = "300")]
     gc_initiate_interval_secs: u64,
 
     /// Interval in seconds for periodic ObserveEpochChange + clock publish.
-    #[arg(long, default_value = "10")]
+    #[arg(long, default_value = "120")]
     gc_observe_interval_secs: u64,
-
-    /// Interval in seconds for periodic cleanup of old epoch entries.
-    #[arg(long, default_value = "60")]
-    gc_cleanup_interval_secs: u64,
 
     #[arg(long, env = "METRICS_FILE_PATH")]
     metrics_path: String,

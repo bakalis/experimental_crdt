@@ -1,3 +1,4 @@
+use core::option::Option::{None, Some};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,6 +19,14 @@ use tracing::{info, warn};
 const GC_INTENT_POLL_INTERVAL_MS: u64 = 200;
 
 pub type MatrixClock = HashMap<NodeId, CausalContext>;
+
+#[derive(Clone, Debug)]
+pub enum GcInitiationAbortReason {
+    InitiatorNotInLatestEpoch,
+    MembershipChange,
+    NoProgress,
+    ConcurrentInitiator,
+}
 
 #[derive(Clone)]
 pub struct GcCoordinator<S: GcStorage> {
@@ -123,12 +132,12 @@ impl<S: GcStorage> GcCoordinator<S> {
         node_id: &NodeId,
         crdt: &mut C,
         current_clock: &mut DotVersionVector,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         let epoch_state = self.storage.read_epoch_state().await?;
         let (current_epoch, v_stable, obsolete) = (epoch_state.epoch, epoch_state.v_stable, epoch_state.obsolete_dots);
 
         if current_epoch <= self.epoch {
-            return Ok(());
+            return Ok(false);
         }
 
         let frontier = dot_version_vector::frontier_dvv(node_id, &v_stable);
@@ -143,7 +152,7 @@ impl<S: GcStorage> GcCoordinator<S> {
             }
         }
 
-        Ok(())
+        Ok(true)
     }
 
     pub async fn initiate_gc<C: DeltaCrdt>(
@@ -151,13 +160,13 @@ impl<S: GcStorage> GcCoordinator<S> {
         node_id: &NodeId,
         crdt: &mut C,
         dvv: &mut DotVersionVector,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<GcInitiationAbortReason>> {
         let epoch_state = self.storage.read_epoch_state().await?;
         let (current_epoch, previous_v_stable) = (epoch_state.epoch, epoch_state.v_stable);
 
         if self.epoch != current_epoch {
             info!(epoch = current_epoch, "Not in latest epoch, aborting GC for previous epoch {}", self.epoch);
-            return Ok(());
+            return Ok(Some(GcInitiationAbortReason::InitiatorNotInLatestEpoch));
         }
 
         let n = current_epoch + 1;
@@ -169,7 +178,7 @@ impl<S: GcStorage> GcCoordinator<S> {
                 epoch = n,
                 "gc_intent already claimed by another replica, aborting GC initiation"
             );
-            return Ok(());
+            return Ok(Some(GcInitiationAbortReason::ConcurrentInitiator));
         }
         
         let m1 = self.membership.live_members().await?;
@@ -182,7 +191,7 @@ impl<S: GcStorage> GcCoordinator<S> {
                 epoch = n,
                 "new member(s) detected during GC initiation, aborting GC"
             );
-            return Ok(());
+            return Ok(Some(GcInitiationAbortReason::MembershipChange));
         }
 
         let final_dots = self.storage.read_final_dots().await?;
@@ -196,7 +205,7 @@ impl<S: GcStorage> GcCoordinator<S> {
             if let Err(e) = self.storage.release_gc_intent(n).await {
                 warn!(%e, epoch = n, "failed to release gc_intent after strict-progress abort");
             }
-            return Ok(());
+            return Ok(Some(GcInitiationAbortReason::NoProgress));
         }
 
         for p in &obsolete {
@@ -225,7 +234,7 @@ impl<S: GcStorage> GcCoordinator<S> {
             warn!(%e, epoch = n, "failed to release gc_intent after commit");
         }
 
-        Ok(())
+        Ok(None)
     } 
 
     pub async fn new_replica_bootstrap<C: DeltaCrdt>(

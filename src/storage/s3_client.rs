@@ -10,6 +10,8 @@ use serde::Serialize;
 use std::sync::Arc;
 use tracing::{debug, info};
 
+use crate::metric;
+
 /// Thin wrapper around [`aws_sdk_s3::Client`]
 #[derive(Clone)]
 pub struct S3Client {
@@ -34,7 +36,8 @@ impl S3Client {
 
     /// Create the bucket if it does not already exist.
     pub async fn ensure_bucket(&self, bucket: &str) -> anyhow::Result<()> {
-        match self.inner.head_bucket().bucket(bucket).send().await {
+        let start_millis = std::time::Instant::now();
+        let result = match self.inner.head_bucket().bucket(bucket).send().await {
             Ok(_) => {
                 debug!(bucket, "bucket already exists");
                 Ok(())
@@ -44,7 +47,9 @@ impl S3Client {
                 self.inner.create_bucket().bucket(bucket).send().await?;
                 Ok(())
             }
-        }
+        };
+        metric!(event = "s3_ensure_bucket", duration_millis = start_millis.elapsed().as_millis() as u64);
+        result
     }
 
     /// Upload `body` to `key` in `bucket` with the given `content_type`.
@@ -55,6 +60,7 @@ impl S3Client {
         body: Vec<u8>,
         content_type: &str,
     ) -> anyhow::Result<()> {
+        let start_millis = std::time::Instant::now();
         self.inner
             .put_object()
             .bucket(bucket)
@@ -63,6 +69,7 @@ impl S3Client {
             .content_type(content_type)
             .send()
             .await?;
+        metric!(event = "s3_put_object", duration_millis = start_millis.elapsed().as_millis() as u64);
         Ok(())
     }
 
@@ -78,6 +85,7 @@ impl S3Client {
         body: Vec<u8>,
         content_type: &str,
     ) -> anyhow::Result<bool> {
+        let start_millis = std::time::Instant::now();
         let res = self
             .inner
             .put_object()
@@ -89,7 +97,7 @@ impl S3Client {
             .send()
             .await;
 
-        match res {
+        let result = match res {
             Ok(_) => Ok(true),
             Err(SdkError::ServiceError(err)) => {
                 let code = err.err().meta().code().unwrap_or_default();
@@ -104,11 +112,14 @@ impl S3Client {
             Err(e) => Err(anyhow::anyhow!(
                 "put_object_if_absent failed for key {key}: {e}"
             )),
-        }
+        };
+        metric!(event = "s3_put_object_if_absent", duration_millis = start_millis.elapsed().as_millis() as u64);
+        result
     }
 
     /// Download and return the body of `key` from `bucket`.
     pub async fn get_object(&self, bucket: &str, key: &str) -> anyhow::Result<Vec<u8>> {
+        let start_millis = std::time::Instant::now();
         let resp = self
             .inner
             .get_object()
@@ -117,6 +128,7 @@ impl S3Client {
             .send()
             .await?;
         let body = resp.body.collect().await?;
+        metric!(event = "s3_get_object", duration_millis = start_millis.elapsed().as_millis() as u64);
         Ok(body.into_bytes().to_vec())
     }
 
@@ -126,8 +138,9 @@ impl S3Client {
         bucket: &str,
         key: &str,
     ) -> anyhow::Result<Option<Vec<u8>>> {
+        let start_millis = std::time::Instant::now();
         let res = self.inner.get_object().bucket(bucket).key(key).send().await;
-        match res {
+        let result = match res {
             Ok(resp) => {
                 let body = resp.body.collect().await?;
                 Ok(Some(body.into_bytes().to_vec()))
@@ -145,17 +158,21 @@ impl S3Client {
             Err(e) => Err(anyhow::anyhow!(
                 "get_object_optional failed for key {key}: {e}"
             )),
-        }
+        };
+        metric!(event = "s3_get_object_optional", duration_millis = start_millis.elapsed().as_millis() as u64);
+        result
     }
 
     /// Delete `key` from `bucket`.
     pub async fn delete_object(&self, bucket: &str, key: &str) -> anyhow::Result<()> {
+        let start_millis = std::time::Instant::now();
         self.inner
             .delete_object()
             .bucket(bucket)
             .key(key)
             .send()
             .await?;
+        metric!(event = "s3_delete_object", duration_millis = start_millis.elapsed().as_millis() as u64);
         Ok(())
     }
 
@@ -166,6 +183,7 @@ impl S3Client {
         bucket: &str,
         prefix: &str,
     ) -> anyhow::Result<Vec<String>> {
+        let start_millis = std::time::Instant::now();
         let mut keys = Vec::new();
         let mut continuation_token: Option<String> = None;
 
@@ -187,7 +205,7 @@ impl S3Client {
                 Option::None => break,
             }
         }
-
+        metric!(event = "s3_list_object_keys", duration_millis = start_millis.elapsed().as_millis() as u64);
         Ok(keys)
     }
 
@@ -198,9 +216,12 @@ impl S3Client {
         key: &str,
         value: &T,
     ) -> anyhow::Result<()> {
+        let start_millis = std::time::Instant::now();
         let bytes = serde_json::to_vec(value)?;
-        self.put_object(bucket, key, bytes, "application/json")
-            .await
+        let result = self.put_object(bucket, key, bytes, "application/json")
+            .await;
+        metric!(event = "s3_put_json", duration_millis = start_millis.elapsed().as_millis() as u64);
+        result
     }
 
     /// Serialize `value` as JSON and upload it to `key` only if absent.
@@ -214,9 +235,12 @@ impl S3Client {
         key: &str,
         value: &T,
     ) -> anyhow::Result<bool> {
+        let start_millis = std::time::Instant::now();
         let bytes = serde_json::to_vec(value)?;
-        self.put_object_if_absent(bucket, key, bytes, "application/json")
-            .await
+        let result = self.put_object_if_absent(bucket, key, bytes, "application/json")
+            .await;
+        metric!(event = "s3_put_json_if_absent", duration_millis = start_millis.elapsed().as_millis() as u64);
+        result
     }
 
     /// Download `key` from `bucket` and deserialize JSON into `T`.
@@ -225,9 +249,11 @@ impl S3Client {
         bucket: &str,
         key: &str,
     ) -> anyhow::Result<T> {
+        let start_millis = std::time::Instant::now();
         let bytes = self.get_object(bucket, key).await?;
         let value = serde_json::from_slice(&bytes)
             .map_err(|e| anyhow::anyhow!("failed to decode json for key {key}: {e}"))?;
+        metric!(event = "s3_get_json", duration_millis = start_millis.elapsed().as_millis() as u64);
         Ok(value)
     }
 
@@ -239,13 +265,16 @@ impl S3Client {
         bucket: &str,
         key: &str,
     ) -> anyhow::Result<Option<T>> {
-        match self.get_object_optional(bucket, key).await? {
+        let start_millis = std::time::Instant::now();
+        let result = match self.get_object_optional(bucket, key).await? {
             Some(bytes) => {
                 let value = serde_json::from_slice(&bytes)
                     .map_err(|e| anyhow::anyhow!("failed to decode json for key {key}: {e}"))?;
                 Ok(Some(value))
             }
             Option::None => Ok(None),
-        }
+        };
+        metric!(event = "s3_get_json_optional", duration_millis = start_millis.elapsed().as_millis() as u64);
+        result
     }
 }
