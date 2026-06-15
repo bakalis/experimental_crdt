@@ -25,6 +25,13 @@ pub async fn start_background_tasks(
 )> {
     let mut handles = vec![];
 
+    if let Some(client_handle) = client_requests_handler::start_client_handle(server.client_port.clone(), engine_tx.clone()) {
+        handles.push(client_handle);
+    }
+
+    let discovery_handle = start_discovery(server, app_tx).await?;
+    handles.push(discovery_handle);
+
     handles.append(&mut engine.start_gc_loops(engine_tx.clone()).await);
 
     handles.push(tokio::spawn(async move {
@@ -34,13 +41,7 @@ pub async fn start_background_tasks(
     if let Some(dissemination_handle) = dissemination.start_pull_loop(engine_tx.clone()) {
         handles.push(dissemination_handle);
     }
-
-    if let Some(client_handle) = client_requests_handler::start_client_handle(server.client_port.clone(), engine_tx.clone()) {
-        handles.push(client_handle);
-    }
-
-    let discovery_handle = start_discovery(server, app_tx).await?;
-    handles.push(discovery_handle);
+    
     let listen_addr: SocketAddr = format!("0.0.0.0:{}", server.listen_port).parse()?;
 
     let listener = TcpListener::bind(listen_addr).await?;

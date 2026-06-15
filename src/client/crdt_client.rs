@@ -4,12 +4,14 @@ use prost::Message as _;
 use rand::Rng;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
-use std::time::{Duration, Instant};
+use std::time::{Duration};
 
 #[path = "../proto/mod.rs"]
 mod proto;
 #[path = "../common/mod.rs"]
 mod common;
+#[path = "../logging/mod.rs"]
+mod logging;
 
 use proto::{proto_client_command, ProtoClientCommand};
 
@@ -21,6 +23,8 @@ struct Cli {
     addr: String,
     #[command(subcommand)]
     mode: Mode,
+    #[arg(long, env = "METRICS_FILE_PATH")]
+    metrics_path: String,
 }
 
 #[derive(Subcommand, Debug)]
@@ -112,8 +116,10 @@ async fn run_interactive(addr: SocketAddr, addr_str: &str) -> anyhow::Result<()>
             Err(e) if e.is_empty() => continue,
             Err(e) => { eprintln!("{e}"); continue; }
         };
+        let start_millis = std::time::Instant::now();
         send_command(&mut write_half, command).await?;
         let resp = recv_response(&mut net_reader).await?;
+        metric!(event = "interactive_command", command = line, duration_millis = start_millis.elapsed().as_millis() as u64);
         println!("{}", String::from_utf8_lossy(&resp));
     }
 
@@ -132,10 +138,7 @@ async fn run_bench(
     let (read_half, mut write_half) = stream.into_split();
     let mut net_reader = BufReader::new(read_half);
     let mut rng = rand::thread_rng();
-    let mut latencies: Vec<Duration> = if let Some(req) = requests { Vec::with_capacity(req as usize) } else { Vec::new() };
     let mut count: u64 = 0;
-
-    let wall_start = Instant::now();
 
     loop {
         if let Some(max_requests) = requests {
@@ -144,42 +147,22 @@ async fn run_bench(
             }
         }
         let key = rng.gen_range(0..key_space);
-        let command = if rng.gen_bool(remove_chance) {
-            proto_client_command::Command::RemoveRandom(true)
+        let (str_command, command) = if count != 0 && rng.gen_bool(remove_chance) {
+            ("remove-random".to_string(), proto_client_command::Command::RemoveRandom(true))
         } else {
-            proto_client_command::Command::Add(format!("key-{key}"))
+            let cmd_key = format!("key-{key}");
+            (cmd_key.clone(), proto_client_command::Command::Add(cmd_key))
         };
 
-        let t0 = Instant::now();
+        let start_millis = std::time::Instant::now();
         send_command(&mut write_half, command).await?;
         recv_response(&mut net_reader).await?;
-        latencies.push(t0.elapsed());
+        metric!(event = "bench_command", command = str_command, duration_millis = start_millis.elapsed().as_millis() as u64);
         count += 1;
         if sleep_ms > 0 {
             tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
         }
     }
-
-    let elapsed = wall_start.elapsed();
-
-    // Compute percentiles on sorted latency list.
-    latencies.sort_unstable();
-    let pct = |p: f64| -> Duration {
-        let idx = ((latencies.len() as f64 * p / 100.0).ceil() as usize)
-            .saturating_sub(1)
-            .min(latencies.len() - 1);
-        latencies[idx]
-    };
-    let mean = latencies.iter().sum::<Duration>() / latencies.len() as u32;
-
-    println!("requests:    {count}");
-    println!("elapsed:     {:.3}s", elapsed.as_secs_f64());
-    println!("throughput:  {:.1} req/s", count as f64 / elapsed.as_secs_f64());
-    println!("latency mean:{:.3}ms", mean.as_secs_f64() * 1000.0);
-    println!("latency p50: {:.3}ms", pct(50.0).as_secs_f64() * 1000.0);
-    println!("latency p95: {:.3}ms", pct(95.0).as_secs_f64() * 1000.0);
-    println!("latency p99: {:.3}ms", pct(99.0).as_secs_f64() * 1000.0);
-
     Ok(())
 }
 
@@ -188,6 +171,7 @@ async fn run_bench(
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    logging::initialize_logging(cli.metrics_path.clone());
     let addr: SocketAddr = common::lookup(&cli.addr).await?;
     match cli.mode {
         Mode::Interactive => run_interactive(addr, &cli.addr).await?,

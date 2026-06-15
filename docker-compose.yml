@@ -503,6 +503,9 @@ services:
       SERVER_ADDR: gc-server-1:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/gc_client_1/:/logs/
     depends_on:
       - gc-server-1
 
@@ -514,6 +517,9 @@ services:
       SERVER_ADDR: gc-server-2:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/gc_client_2/:/logs/
     depends_on:
       - gc-server-2
 
@@ -525,6 +531,9 @@ services:
       SERVER_ADDR: gc-server-3:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/gc_client_3/:/logs/
     depends_on:
       - gc-server-3
 
@@ -536,6 +545,9 @@ services:
       SERVER_ADDR: gc-server-4:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/gc_client_4/:/logs/
     depends_on:
       - gc-server-4
 
@@ -547,6 +559,9 @@ services:
       SERVER_ADDR: gc-server-5:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/gc_client_5/:/logs/
     depends_on:
       - gc-server-5
 
@@ -558,6 +573,9 @@ services:
       SERVER_ADDR: normal-server-1:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_1/:/logs/
     depends_on:
       - normal-server-1
 
@@ -569,6 +587,9 @@ services:
       SERVER_ADDR: normal-server-2:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_2/:/logs/
     depends_on:
       - normal-server-2
 
@@ -580,6 +601,9 @@ services:
       SERVER_ADDR: normal-server-3:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_3/:/logs/
     depends_on:
       - normal-server-3
 
@@ -591,6 +615,9 @@ services:
       SERVER_ADDR: normal-server-4:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_4/:/logs/
     depends_on:
       - normal-server-4
 
@@ -602,6 +629,9 @@ services:
       SERVER_ADDR: normal-server-5:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_5/:/logs/
     depends_on:
       - normal-server-5
 
@@ -613,6 +643,9 @@ services:
       SERVER_ADDR: normal-server-6:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_6/:/logs/
     depends_on:
       - normal-server-6
 
@@ -624,6 +657,9 @@ services:
       SERVER_ADDR: normal-server-7:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_7/:/logs/
     depends_on:
       - normal-server-7
 
@@ -635,6 +671,9 @@ services:
       SERVER_ADDR: normal-server-8:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_8/:/logs/
     depends_on:
       - normal-server-8
 
@@ -646,6 +685,9 @@ services:
       SERVER_ADDR: normal-server-9:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_9/:/logs/
     depends_on:
       - normal-server-9
 
@@ -657,6 +699,9 @@ services:
       SERVER_ADDR: normal-server-10:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_10/:/logs/
     depends_on:
       - normal-server-10
 
@@ -668,6 +713,9 @@ services:
       SERVER_ADDR: normal-server-11:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_11/:/logs/
     depends_on:
       - normal-server-11
 
@@ -679,6 +727,9 @@ services:
       SERVER_ADDR: normal-server-12:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_12/:/logs/
     depends_on:
       - normal-server-12
 
@@ -690,6 +741,9 @@ services:
       SERVER_ADDR: normal-server-13:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_13/:/logs/
     depends_on:
       - normal-server-13
 
@@ -701,6 +755,9 @@ services:
       SERVER_ADDR: normal-server-14:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_14/:/logs/
     depends_on:
       - normal-server-14
 
@@ -712,6 +769,9 @@ services:
       SERVER_ADDR: normal-server-15:9100
       TOTAL_REQUESTS: 50
       SLEEP_MS: 0
+      METRICS_FILE_PATH: ${METRICS_FILE_PATH}
+    volumes:
+      - ./logs/normal_client_15/:/logs/
     depends_on:
       - normal-server-15
 

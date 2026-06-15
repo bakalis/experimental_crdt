@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use rand::Rng;
 
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -140,9 +141,15 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             let eng_tx = engine_tx.clone();
             if let Some(interval) = initiate_interval {
                 handles.push(tokio::spawn(async move {
-                    let mut ticker = tokio::time::interval(interval);
                     loop {
-                        ticker.tick().await;
+                        let jitter_range = (interval / 20).as_nanos() as i64;
+                        let jitter_nanos = rand::thread_rng().gen_range(-jitter_range..=jitter_range);
+                        let sleep_duration = if jitter_nanos >= 0 {
+                            interval + std::time::Duration::from_nanos(jitter_nanos as u64)
+                        } else {
+                            interval.saturating_sub(std::time::Duration::from_nanos((-jitter_nanos) as u64))
+                        };
+                        tokio::time::sleep(sleep_duration).await;
                         let _ = eng_tx.send(CrdtEngineRequest::InitiateGc).await;
                     }
                 }));
