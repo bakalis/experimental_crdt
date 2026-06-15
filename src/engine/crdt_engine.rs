@@ -333,7 +333,8 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         let result = gc
             .new_replica_bootstrap(&self.node_id, crdt, dvv)
             .await;
-        metric!(event = "new_replica_bootstrap", duration_millis = start_millis.elapsed().as_millis() as u64);
+        metric!(event = "new_replica_bootstrap",
+            duration_millis = start_millis.elapsed().as_millis() as u64);
         result 
     }
 

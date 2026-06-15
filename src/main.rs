@@ -79,11 +79,11 @@ struct Cli {
     gc_prefix: String,
 
     /// Interval in seconds for periodic GC initiation attempts.
-    #[arg(long, default_value = "60")]
+    #[arg(long, default_value = "300")]
     gc_initiate_interval_secs: u64,
 
     /// Interval in seconds for periodic ObserveEpochChange + clock publish.
-    #[arg(long, default_value = "30")]
+    #[arg(long, default_value = "120")]
     gc_observe_interval_secs: u64,
 
     #[arg(long, env = "METRICS_FILE_PATH")]
