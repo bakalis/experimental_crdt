@@ -6,23 +6,19 @@
 //! GC/membership concerns are delegated to dedicated layers.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use rand::Rng;
 
-use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use tracing::{debug, warn};
+use tracing::{warn};
 
 use crate::metric;
 use crate::common::{Counter, NodeId};
 use crate::crdt::{DeltaContext, DeltaCrdt};
 use crate::network::dissemination::SharedDissemination;
-use crate::gc::{GcConfig, GcCoordinator, coordinator::GcInitiationAbortReason};
-use crate::logical_clocks::dot_version_vector::DotVersionVector;
+use crate::gc::{GcConfig, GcCoordinator, coordinator::GcInitiationAbortReason, storage::S3GcStorage};
+use crate::logical_clocks::dot_version_vector::{Dot, DotVersionVector};
 use crate::peers::peer_registry::PeerRegistry;
 use crate::storage::s3_client::S3Client;
-use crate::engine::PullResponse;
-use crate::engine::engine_inner::EngineInner;
 
 pub enum CrdtEngineRequest<C: DeltaCrdt> {
     DoPullRound,
@@ -44,8 +40,10 @@ pub enum CrdtEngineRequest<C: DeltaCrdt> {
 pub struct CrdtEngine<C: DeltaCrdt> {
     node_id: NodeId,
     crdt_id: String,
+    gc: GcCoordinator<S3GcStorage>,
     dissemination: SharedDissemination<C>,
-    inner: Arc<Mutex<EngineInner<C>>>,
+    crdt: C,
+    dvv: DotVersionVector,
     rx: tokio::sync::mpsc::Receiver<CrdtEngineRequest<C>>,
 }
 
@@ -61,16 +59,13 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
     ) -> Self {
         let dvv = DotVersionVector::new(node_id.clone());
         let (client, config) = gc;
-        let inner = EngineInner {
-            crdt,
-            dvv,
-            gc: GcCoordinator::new(client, config, peer_registry),
-        };
         CrdtEngine {
             node_id,
             crdt_id,
+            gc: GcCoordinator::new(client, config, peer_registry),
             dissemination,
-            inner: Arc::new(Mutex::new(inner)),
+            crdt,
+            dvv,
             rx
         }
     }
@@ -81,11 +76,11 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         while let Some(request) = self.rx.recv().await {
             match request {
                 CrdtEngineRequest::DoPullRound => {
-                    let inner = self.inner.lock().await;
+                    let dvv = &self.dvv;
                     self.dissemination.do_pull_round(&self.node_id, 
                         &self.crdt_id,
-                        inner.gc.config.gc_replica,
-                        &inner.dvv.effective_map());
+                        self.gc.config.gc_replica,
+                        &dvv.effective_map());
                 },
                 CrdtEngineRequest::ClientOperation(op) => {
                     self.client_operation(op).await;
@@ -110,8 +105,8 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
                 CrdtEngineRequest::DeltaRequest(from_node, crdt_id, knowledge_matrix) => {
                     self.server_pull_request(from_node, crdt_id, knowledge_matrix).await;
                 },
-                CrdtEngineRequest::DeltaResponse(from_node, crdt_id, payload, knowledge_matrix) => {
-                    self.server_delta(from_node, crdt_id, payload, knowledge_matrix).await;
+                CrdtEngineRequest::DeltaResponse(_from_node, crdt_id, payload, knowledge_matrix) => {
+                    self.server_delta(crdt_id, payload, knowledge_matrix).await;
                 },
                 CrdtEngineRequest::DeregistrationState(resp_tx) => {
                     let state = self.get_final_state_for_deregistration().await;
@@ -128,17 +123,15 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
                     }
                 }
                 CrdtEngineRequest::LogCrdtMetrics => {
-                    let inner = self.inner.lock().await;
-                    inner.crdt.log_metrics(&inner.dvv, inner.gc.epoch);
+                    self.crdt.log_metrics(&self.dvv, self.gc.epoch);
                 }
             }
         }
     }
 
     pub async fn start_gc_loops(&self, engine_tx: tokio::sync::mpsc::Sender<CrdtEngineRequest<C>>) -> Vec<JoinHandle<()>> {
-        let inner = self.inner.lock().await;
-        let initiate_interval = inner.gc.initiate_interval();
-        let observe_interval = inner.gc.observe_interval();
+        let initiate_interval = self.gc.initiate_interval();
+        let observe_interval = self.gc.observe_interval();
 
         let mut handles = Vec::new();
 
@@ -175,45 +168,38 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
     }
 
     async fn get_random_element(&self) -> Option<String> {
-        let inner = self.inner.lock().await;
-        inner.crdt.get_random_element()
+        self.crdt.get_random_element()
     }
 
     async fn print_internals(&self) -> String {
-        let inner = self.inner.lock().await;
-        inner.crdt.print_internals()
+        self.crdt.print_internals()
     }
 
     async fn print_matrix_clock(&self) -> String {
-        let inner = self.inner.lock().await;
-        inner.gc.print_matrix_clock()
+        self.gc.print_matrix_clock().await
     }
 
     async fn print_state(&self) -> String {
-        let inner = self.inner.lock().await;
-        inner.crdt.print_state()
+        self.crdt.print_state()
     }
 
     /// Called when a client wants to perform a local write.
-    async fn client_operation(&self, op: C::Op) {
-        let (gc_replica, knowledge) = {
-            let mut inner = self.inner.lock().await;
-            inner.client_operation(op);
-            (
-                inner.gc.config.gc_replica,
-                inner.dvv.effective_map(),
-            )
-        };
+    async fn client_operation(&mut self, op: C::Op) {
+        // 1. Mint a new dot.
+        self.dvv.event();
+        let dot = Dot::new(self.dvv.dot.node_id.clone(), self.dvv.dot.counter);
+
+        // 2. Apply to CRDT.
+        self.crdt.apply_local(dot, op);
         // Advertise the updated VV outside the lock so peers can compute what to send us.
         self.dissemination
-            .push_version_vector(&self.node_id, &self.crdt_id, gc_replica, &knowledge)
+            .push_version_vector(&self.node_id, &self.crdt_id, self.gc.config.gc_replica, &self.dvv.effective_map())
             .await;
     }
 
     /// Called when a `CrdtOp` (delta) message arrives from the network.
     async fn server_delta(
-        &self,
-        from_node: NodeId,
+        &mut self,
         crdt_id: String,
         payload: Vec<u8>,
         knowledge_matrix: Option<HashMap<NodeId, HashMap<NodeId, u64>>>,
@@ -227,31 +213,40 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             return;
         }
 
-        debug!(%from_node, %crdt_id, "merging remote delta");
-        let (gc_replica, knowledge) = {
-            let mut inner = self.inner.lock().await;
-            inner.handle_remote_delta(&payload);
-            inner
-                .gc
-                .update_matrix_clock(&knowledge_matrix.unwrap_or_default());
-            (
-                inner.gc.config.gc_replica,
-                inner.dvv.effective_map(),
-            )
+        let delta = match C::decode_delta(&payload) {
+            Ok(d) => d,
+            Err(e) => {
+                warn!(%e, "failed to decode remote delta");
+                return;
+            }
         };
-        // Merges are local state changes; push/hybrid strategies advertise
-        // the updated VV so other peers can react.
+
+        if let Some(matrix) = &knowledge_matrix {
+            self.gc.update_matrix_clock(matrix).await;
+        } 
+
+        // Merge CRDT state.
+        self.crdt.merge_delta(&delta);
+
+        // Merge causal context into DVV.
+        let (ctx, node, counter) = delta.causal_context();
+        let remote_dvv = DotVersionVector {
+            dot: Dot::new(node, counter),
+            context: ctx,
+        };
+        self.dvv.merge(&remote_dvv);
+
         self.dissemination
-            .on_post_merge(&self.node_id, &self.crdt_id, gc_replica, &knowledge)
+            .on_post_merge(&self.node_id, &self.crdt_id, self.gc.config.gc_replica, &self.dvv.effective_map())
             .await;
     }
 
     /// Called when a `CrdtPullRequest` message arrives from the network.
     async fn server_pull_request(
-        &self,
+        &mut self,
         from_node: NodeId,
         crdt_id: String,
-        knowledge: HashMap<NodeId, u64>,
+        remote_knowledge: HashMap<NodeId, u64>,
     ) {
         if crdt_id != self.crdt_id {
             warn!(
@@ -262,8 +257,49 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             return;
         }
 
-        let mut inner = self.inner.lock().await;
-        let PullResponse { delta_payload, knowledge_matrix, our_knowledge_request } = inner.server_pull_request(&from_node, knowledge);
+        let mut knowledge = HashMap::new();
+        knowledge.insert(from_node.clone(), remote_knowledge.clone());
+        self.gc.update_matrix_clock(&knowledge).await;
+
+        let our_knowledge = self.dvv.effective_map();
+        let communication_between_gc_replicas = self.gc.config.gc_replica && self
+            .gc
+            .registry
+            .get(&from_node)
+            .map(|(_, gc_replica, _)| gc_replica)
+            .unwrap_or(false);
+
+        // Compute delta if we are ahead of the remote in any dimension.
+        let dvv_delta = self.dvv.delta_since(&remote_knowledge);
+        let delta_payload = if communication_between_gc_replicas || dvv_delta.dot.counter != 0 || !dvv_delta.context.is_empty() {
+            let state = self.crdt.delta_since(&remote_knowledge, &self.dvv);
+            Some(C::encode_delta(&state))
+        } else {
+            None
+        };
+
+        // Compute our VV request if the remote is ahead of us in any dimension.
+        let we_are_fully_ahead = remote_knowledge
+            .iter()
+            .all(|(node, &remote_ctr)| our_knowledge.get(node).copied().unwrap_or(0) >= remote_ctr);
+        let our_knowledge_request = if !we_are_fully_ahead {
+            Some(our_knowledge)
+        } else {
+            None
+        };
+
+        // Include the knowledge matrix if the requester is a GC replica, so they can make informed decisions about what to GC.
+        let knowledge_matrix = if self
+            .gc
+            .registry
+            .get(&from_node)
+            .map(|(_, gc_replica, _)| gc_replica)
+            .unwrap_or(false)
+        {
+            self.gc.get_knowledge_matrix().await
+        } else {
+            None
+        };
 
         // Route both actions through the dissemination layer. The strategy
         // decides whether to piggyback the VV request on the delta message.
@@ -272,22 +308,15 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             &self.crdt_id,
             &self.node_id,
             delta_payload,
-            inner.gc.config.gc_replica,
+            self.gc.config.gc_replica,
             knowledge_matrix,
             our_knowledge_request,
         );
     }
 
-    async fn observe_epoch_change(&self) -> anyhow::Result<bool> {
+    async fn observe_epoch_change(&mut self) -> anyhow::Result<bool> {
         let start_millis = std::time::Instant::now();
-        let mut inner = self.inner.lock().await;
-        let EngineInner {
-            gc,
-            crdt,
-            dvv,
-            ..
-        } = &mut *inner;
-        let result = gc.observe_epoch_change(&self.node_id, crdt, dvv)
+        let result = self.gc.observe_epoch_change(&self.node_id, &mut self.crdt, &mut self.dvv)
             .await;
 
         let epoch_changed = match &result {
@@ -300,17 +329,12 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         result
     }
 
-    async fn initiate_gc(&self) -> anyhow::Result<Option<GcInitiationAbortReason>> {
+    async fn initiate_gc(&mut self) -> anyhow::Result<Option<GcInitiationAbortReason>> {
         let start_millis = std::time::Instant::now();
-        let mut inner = self.inner.lock().await;
-        let EngineInner {
-            gc,
-            crdt,
-            dvv,
-            ..
-        } = &mut *inner;
-        let result = gc.initiate_gc(&self.node_id, crdt, dvv)
+
+        let result = self.gc.initiate_gc(&self.node_id, &mut self.crdt, &mut self.dvv)
             .await;
+
         let (abort, abort_reason) = match &result {
             Ok(reason) => match reason {
                 Some(r) => (true, format!("{:?}", r)),
@@ -326,26 +350,19 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         result
     }
 
-    async fn new_replica_bootstrap(&self) -> anyhow::Result<()> {
+    async fn new_replica_bootstrap(&mut self) -> anyhow::Result<()> {
         let start_millis = std::time::Instant::now();
-        let mut inner = self.inner.lock().await;
-        let EngineInner {
-            gc,
-            crdt,
-            dvv,
-            ..
-        } = &mut *inner;
-        let result = gc
-            .new_replica_bootstrap(&self.node_id, crdt, dvv)
+        let result = self.gc
+            .new_replica_bootstrap(&self.node_id, &mut self.crdt, &mut self.dvv)
             .await;
+
         metric!(event = "new_replica_bootstrap",
             duration_millis = start_millis.elapsed().as_millis() as u64);
         result 
     }
 
     async fn get_final_state_for_deregistration(&self) -> (Counter, Vec<u8>) {
-        let inner = self.inner.lock().await;
-        let final_state_delta = inner.crdt.full_state(&inner.dvv);
+        let final_state_delta = self.crdt.full_state(&self.dvv);
         let final_dot: Counter = final_state_delta.causal_context().2;
         let final_state = C::encode_delta(&final_state_delta);
         (final_dot, final_state)

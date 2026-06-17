@@ -1,6 +1,7 @@
 use core::option::Option::{None, Some};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use std::time::Duration;
 
 use crate::common::{Counter, NodeId};
@@ -27,14 +28,13 @@ pub enum GcInitiationAbortReason {
     ConcurrentInitiator,
 }
 
-#[derive(Clone)]
 pub struct GcCoordinator<S: GcStorage> {
     pub epoch: u64,
     storage: S,
     membership: Arc<DiscoveryMembershipProvider>,
     pub registry: PeerRegistry,
     pub config: GcConfig,
-    matrix_clock: Option<MatrixClock>,
+    matrix_clock: Option<RwLock<MatrixClock>>,
 }
 
 pub fn new_member_exists(old: &[NodeId], new: &[NodeId]) -> bool {
@@ -56,7 +56,7 @@ impl GcCoordinator<S3GcStorage> {
             config,
             registry,
             matrix_clock: if gc_replica {
-                Some(HashMap::new())
+                Some(RwLock::new(HashMap::new()))
             } else {
                 None
             },
@@ -76,52 +76,54 @@ impl<S: GcStorage> GcCoordinator<S> {
         self.config.observe_interval
     }
 
-    pub fn get_knowledge_matrix(&self) -> Option<MatrixClock> {
+    pub async fn get_knowledge_matrix(&self) -> Option<MatrixClock> {
         if !self.config.gc_replica {
             return None;
         }
         let mut knowledge_matrix = HashMap::new();
         let non_gc_peers = self.registry.get_all_non_gc_replicas();
+        let matrix_clock = self.matrix_clock.as_ref()?.read().await;
         for node in &non_gc_peers {
-            if self.matrix_clock.as_ref()?.contains_key(node) {
+            if matrix_clock.contains_key(node) {
                 knowledge_matrix
-                    .insert(node.clone(), self.matrix_clock.as_ref()?.get(node)?.clone());
+                    .insert(node.clone(), matrix_clock.get(node)?.clone());
             }
         }
         Some(knowledge_matrix)
     }
 
-    pub fn print_matrix_clock(&self) -> String {
+    pub async fn print_matrix_clock(&self) -> String {
         if !self.config.gc_replica {
             return "Matrix Clock: GC replica disabled".to_string();
         }
-        format!("Matrix Clock: {:?}", self.matrix_clock.as_ref().unwrap())
+        let matrix_clock = self.matrix_clock.as_ref().unwrap().read().await;
+        format!("Matrix Clock: {:?}", matrix_clock)
     }
 
-    pub fn update_matrix_clock(&mut self, knowledge_matrix: &MatrixClock) {
+    pub async fn update_matrix_clock(&mut self, knowledge_matrix: &MatrixClock) {
         if !self.config.gc_replica {
             return;
         }
+        let mut matrix_clock = self.matrix_clock.as_mut().unwrap().write().await;
         for (node, context) in knowledge_matrix {
-            self.matrix_clock
-                .as_mut()
-                .unwrap()
-                .insert(node.clone(), context.clone());
+            matrix_clock.insert(node.clone(), context.clone());
         }
     }
 
-    pub fn remove_matrix_clock_row(&mut self, node_id: &NodeId) {
+    pub async fn remove_matrix_clock_row(&mut self, node_id: &NodeId) {
         if !self.config.gc_replica {
             return;
         }
-        self.matrix_clock.as_mut().unwrap().remove(node_id);
+        let mut matrix_clock = self.matrix_clock.as_mut().unwrap().write().await;
+        matrix_clock.remove(node_id);
     }
 
-    pub fn remove_matrix_clock_column(&mut self, node_id: &NodeId) {
+    pub async fn remove_matrix_clock_column(&mut self, node_id: &NodeId) {
         if !self.config.gc_replica {
             return;
         }
-        for context in self.matrix_clock.as_mut().unwrap().values_mut() {
+        let mut matrix_clock = self.matrix_clock.as_mut().unwrap().write().await;
+        for context in matrix_clock.values_mut() {
             context.remove(node_id);
         }
     }
@@ -130,7 +132,7 @@ impl<S: GcStorage> GcCoordinator<S> {
         &mut self,
         node_id: &NodeId,
         crdt: &mut C,
-        current_clock: &mut DotVersionVector,
+        dvv: &mut DotVersionVector,
     ) -> anyhow::Result<bool> {
         let epoch_state = self.storage.read_epoch_metadata().await?;
         let (current_epoch, v_stable, obsolete) = (epoch_state.epoch, epoch_state.v_stable, epoch_state.obsolete_dots);
@@ -144,10 +146,10 @@ impl<S: GcStorage> GcCoordinator<S> {
         self.epoch = current_epoch;
 
         for p in &obsolete {
-            current_clock.remove(p);
+            dvv.remove(p);
             if self.config.gc_replica {
-                self.remove_matrix_clock_row(p);
-                self.remove_matrix_clock_column(p);
+                self.remove_matrix_clock_row(p).await;
+                self.remove_matrix_clock_column(p).await;
             }
         }
 
@@ -203,8 +205,8 @@ impl<S: GcStorage> GcCoordinator<S> {
         }
 
         for p in &obsolete {
-            self.remove_matrix_clock_row(p);
-            self.remove_matrix_clock_column(p);
+            self.remove_matrix_clock_row(p).await;
+            self.remove_matrix_clock_column(p).await;
             dvv.remove(p);
             v_stable.remove(p);
         }
@@ -278,7 +280,7 @@ impl<S: GcStorage> GcCoordinator<S> {
         self_clock: &HashMap<NodeId, Counter>,
     ) -> anyhow::Result<(HashMap<NodeId, Counter>, HashSet<NodeId>)> {
         let mc = match &self.matrix_clock {
-            Some(mc) => mc,
+            Some(mc) => mc.read().await,
             Option::None => return Ok((HashMap::new(), HashSet::new())),
         };
 
