@@ -22,7 +22,6 @@ pub type MatrixClock = HashMap<NodeId, CausalContext>;
 
 #[derive(Clone, Debug)]
 pub enum GcInitiationAbortReason {
-    InitiatorNotInLatestEpoch,
     MembershipChange,
     NoProgress,
     ConcurrentInitiator,
@@ -30,7 +29,7 @@ pub enum GcInitiationAbortReason {
 
 #[derive(Clone)]
 pub struct GcCoordinator<S: GcStorage> {
-    epoch: u64,
+    pub epoch: u64,
     storage: S,
     membership: Arc<DiscoveryMembershipProvider>,
     pub registry: PeerRegistry,
@@ -133,7 +132,7 @@ impl<S: GcStorage> GcCoordinator<S> {
         crdt: &mut C,
         current_clock: &mut DotVersionVector,
     ) -> anyhow::Result<bool> {
-        let epoch_state = self.storage.read_epoch_state().await?;
+        let epoch_state = self.storage.read_epoch_metadata().await?;
         let (current_epoch, v_stable, obsolete) = (epoch_state.epoch, epoch_state.v_stable, epoch_state.obsolete_dots);
 
         if current_epoch <= self.epoch {
@@ -161,13 +160,8 @@ impl<S: GcStorage> GcCoordinator<S> {
         crdt: &mut C,
         dvv: &mut DotVersionVector,
     ) -> anyhow::Result<Option<GcInitiationAbortReason>> {
-        let epoch_state = self.storage.read_epoch_state().await?;
+        let epoch_state = self.storage.read_epoch_metadata().await?;
         let (current_epoch, previous_v_stable) = (epoch_state.epoch, epoch_state.v_stable);
-
-        if self.epoch != current_epoch {
-            info!(epoch = current_epoch, "Not in latest epoch, aborting GC for previous epoch {}", self.epoch);
-            return Ok(Some(GcInitiationAbortReason::InitiatorNotInLatestEpoch));
-        }
 
         let n = current_epoch + 1;
 
@@ -215,10 +209,12 @@ impl<S: GcStorage> GcCoordinator<S> {
             v_stable.remove(p);
         }
 
-        let frontier = dot_version_vector::frontier_dvv(node_id, &v_stable);
-        crdt.perform_gc(&frontier);
-        let gc_state = crdt.full_state(dvv);
-        let gc_state_payload = C::encode_delta(&gc_state);
+        let gc_state_payload = {
+            let frontier = dot_version_vector::frontier_dvv(node_id, &v_stable);
+            crdt.perform_gc(&frontier);
+            let gc_state = crdt.full_state(dvv);
+            C::encode_delta(&gc_state)
+        };  
         let epoch_state = EpochState {
             epoch: n,
             v_stable,

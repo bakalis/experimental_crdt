@@ -9,6 +9,7 @@ use std::hash::Hash;
 
 use prost::Message as _;
 
+use crate::metric;
 use crate::common::{Counter, NodeId};
 use crate::crdt::{DeltaContext, DeltaCrdt, ElementCodec};
 use crate::logical_clocks::dot_version_vector::{Dot, DotVersionVector};
@@ -185,6 +186,19 @@ where
         format!("adds: [{adds}] | tombstones: [{tombstones}]")
     }
 
+    fn log_metrics(&self, dvv: &DotVersionVector, epoch: u64) {
+        let num_adds = self.adds.len() as u64;
+        let num_tombstones = self.tombstones.len() as u64;
+        let effective_map = dvv.effective_map().iter().map(|(node, counter)| format!("{}:{}", node, counter))
+            .collect::<Vec<_>>()
+            .join(", ");
+        metric!(event = "or_set_metrics",
+            adds = num_adds,
+            tombstones = num_tombstones,
+            vector_clock = effective_map,
+            epoch = epoch);
+    }
+
     fn full_state(&self, dvv: &DotVersionVector) -> OrSetDelta<E> {
         let adds: Vec<(E, Dot)> = self
             .adds
@@ -249,8 +263,13 @@ where
     }
 
     fn perform_gc(&mut self, frontier: &DotVersionVector) {
+        let size_before = self.tombstones.len();
         self.tombstones
             .retain(|_, remove_dot| !frontier.dominates_dot(remove_dot));
+        self.tombstones.shrink_to_fit();
+        self.adds.shrink_to_fit();
+        let size_after = self.tombstones.len();
+        metric!(event = "gc_performed", tombstones_reclaimed = (size_before - size_after) as u64);
     }
 
     fn encode_delta(delta: &OrSetDelta<E>) -> Vec<u8> {

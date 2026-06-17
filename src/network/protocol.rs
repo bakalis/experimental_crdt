@@ -10,6 +10,7 @@ use bytes::{Buf, BufMut, BytesMut};
 use prost::Message;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
+use crate::metric;
 use crate::common::error::{Error, Result};
 use crate::proto::Envelope;
 
@@ -26,6 +27,7 @@ pub async fn write_envelope<W: AsyncWrite + Unpin>(
     envelope.encode(&mut buf)?;
     writer.write_all(&buf).await?;
     writer.flush().await?;
+    metric!(event = "send_envelope", size_bytes = len as u64);
     Ok(())
 }
 
@@ -52,5 +54,6 @@ pub async fn read_envelope<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Optio
     let mut payload = BytesMut::zeroed(len as usize);
     reader.read_exact(&mut payload).await?;
     let envelope = Envelope::decode(payload.chunk())?;
+    metric!(event = "receive_envelope", size_bytes = len as u64);
     Ok(Some(envelope))
 }

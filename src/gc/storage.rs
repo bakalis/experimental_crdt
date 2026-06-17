@@ -15,6 +15,8 @@ use crate::storage::s3_client::S3Client;
 #[async_trait]
 pub trait GcStorage: Send + Sync {
 
+    async fn read_epoch_metadata(&self) -> anyhow::Result<EpochMetadata>;
+
     async fn read_epoch_state(&self) -> anyhow::Result<EpochState>;
 
     async fn write_epoch_state(
@@ -33,12 +35,20 @@ pub trait GcStorage: Send + Sync {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EpochMetadata {
+    pub epoch: u64,
+    pub v_stable: HashMap<NodeId, Counter>,
+    pub obsolete_dots: HashSet<NodeId>,
+    pub initiator_clock: HashMap<NodeId, Counter>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EpochState {
     pub epoch: u64,
     pub v_stable: HashMap<NodeId, Counter>,
     pub obsolete_dots: HashSet<NodeId>,
-    pub state_payload: Vec<u8>,
     pub initiator_clock: HashMap<NodeId, Counter>,
+    pub state_payload: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,6 +114,15 @@ impl S3GcStorage {
 
 #[async_trait]
 impl GcStorage for S3GcStorage {
+    async fn read_epoch_metadata(&self) -> anyhow::Result<EpochMetadata> {
+        Ok(self.client.get_json_optional(self.bucket(), &self.epoch_entry_key()).await?.unwrap_or(EpochMetadata {
+            epoch: 0,
+            v_stable: HashMap::new(),
+            obsolete_dots: HashSet::new(),
+            initiator_clock: HashMap::new(),
+        }))
+    }
+
     async fn read_epoch_state(&self) -> anyhow::Result<EpochState> {
         Ok(self.client.get_json_optional(self.bucket(), &self.epoch_entry_key()).await?.unwrap_or(EpochState {
             epoch: 0,

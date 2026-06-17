@@ -36,6 +36,7 @@ pub enum CrdtEngineRequest<C: DeltaCrdt> {
     DeregistrationState(tokio::sync::oneshot::Sender<(Counter, Vec<u8>)>),
     InitiateGc,
     ObserveEpochChange,
+    LogCrdtMetrics,
 }
 
 
@@ -125,6 +126,10 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
                     if let Err(e) = self.observe_epoch_change().await {
                         warn!(%e, "observe_epoch_change failed");
                     }
+                }
+                CrdtEngineRequest::LogCrdtMetrics => {
+                    let inner = self.inner.lock().await;
+                    inner.crdt.log_metrics(&inner.dvv, inner.gc.epoch);
                 }
             }
         }

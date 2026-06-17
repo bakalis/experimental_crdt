@@ -92,6 +92,8 @@ pub trait DeltaCrdt: Send + Sync + 'static {
     // TODO: NOT GENERIC: need to be refactored after testing is over
     fn get_random_element(&self) -> Option<String>;
 
+    fn log_metrics(&self, dvv: &DotVersionVector, epoch: u64);
+
     // ── Serialisation ───────────────────────────────────────────────────
 
     fn encode_delta(delta: &Self::Delta) -> Vec<u8>;

@@ -114,6 +114,9 @@ impl Server {
         let (handles, listener) = initializer::start_background_tasks(self, engine, engine_tx.clone(), dissemination.clone(), app_tx.clone())
             .await?;
 
+        let print_metrics_interval = std::time::Duration::from_secs(10);
+        let mut metrics_interval = tokio::time::interval(print_metrics_interval);
+
         // Run Main Loop
         loop {
             tokio::select! {
@@ -122,9 +125,13 @@ impl Server {
                     self.node_name.clone(), self.gc_replica, self.registry.clone(),
                     app_tx.clone(), accept_result);
                 }
-
+                
                 Some((addr, envelope)) = app_rx.recv() => {
                     peer_message_handler::handle_received_envelope(envelope, addr, engine_tx.clone()).await;
+                }
+
+                _ = metrics_interval.tick() => {
+                    engine_tx.send(CrdtEngineRequest::LogCrdtMetrics).await?;
                 }
 
                 // TODO: also handle all other shutdown signals (SIGINT, SIGTERM, etc.)
