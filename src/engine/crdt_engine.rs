@@ -123,6 +123,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
                     }
                 }
                 CrdtEngineRequest::LogCrdtMetrics => {
+                    // self.gc.log_metrics().await;
                     self.crdt.log_metrics(&self.dvv, self.gc.epoch);
                 }
             }
@@ -223,6 +224,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
 
         if let Some(matrix) = &knowledge_matrix {
             self.gc.update_matrix_clock(matrix).await;
+            let _ = self.gc.log_metrics(&self.node_id, &self.dvv).await;
         } 
 
         // Merge CRDT state.
@@ -260,6 +262,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         let mut knowledge = HashMap::new();
         knowledge.insert(from_node.clone(), remote_knowledge.clone());
         self.gc.update_matrix_clock(&knowledge).await;
+        let _ = self.gc.log_metrics(&self.node_id, &self.dvv).await;
 
         let our_knowledge = self.dvv.effective_map();
         let communication_between_gc_replicas = self.gc.config.gc_replica && self

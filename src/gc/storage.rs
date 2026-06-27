@@ -19,9 +19,11 @@ pub trait GcStorage: Send + Sync {
 
     async fn read_epoch_state(&self) -> anyhow::Result<EpochState>;
 
+    async fn write_epoch_metadata(&self, epoch_metadata: &EpochMetadata) -> anyhow::Result<()>;
+
     async fn write_epoch_state(
         &self,
-        epoch_state: EpochState
+        epoch_state: &EpochState
     ) -> anyhow::Result<()>;
 
     async fn read_final_dots(&self) -> anyhow::Result<HashMap<NodeId, Counter>>;
@@ -39,14 +41,11 @@ pub struct EpochMetadata {
     pub epoch: u64,
     pub v_stable: HashMap<NodeId, Counter>,
     pub obsolete_dots: HashSet<NodeId>,
-    pub initiator_clock: HashMap<NodeId, Counter>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EpochState {
     pub epoch: u64,
-    pub v_stable: HashMap<NodeId, Counter>,
-    pub obsolete_dots: HashSet<NodeId>,
     pub initiator_clock: HashMap<NodeId, Counter>,
     pub state_payload: Vec<u8>,
 }
@@ -76,7 +75,11 @@ impl S3GcStorage {
         self.key("gc_intent", &format!("_{epoch}.json"))
     }
 
-    pub fn epoch_entry_key(&self) -> String {
+    pub fn epoch_metadata_key(&self) -> String {
+        self.key("epoch_metadata", ".json")
+    }
+
+    pub fn epoch_state_key(&self) -> String {
         self.key("epoch_state", ".json")
     }
 
@@ -115,30 +118,39 @@ impl S3GcStorage {
 #[async_trait]
 impl GcStorage for S3GcStorage {
     async fn read_epoch_metadata(&self) -> anyhow::Result<EpochMetadata> {
-        Ok(self.client.get_json_optional(self.bucket(), &self.epoch_entry_key()).await?.unwrap_or(EpochMetadata {
+        Ok(self.client.get_json_optional(self.bucket(), &self.epoch_metadata_key()).await?.unwrap_or(EpochMetadata {
             epoch: 0,
             v_stable: HashMap::new(),
             obsolete_dots: HashSet::new(),
-            initiator_clock: HashMap::new(),
         }))
     }
 
     async fn read_epoch_state(&self) -> anyhow::Result<EpochState> {
-        Ok(self.client.get_json_optional(self.bucket(), &self.epoch_entry_key()).await?.unwrap_or(EpochState {
+        Ok(self.client.get_json_optional(self.bucket(), &self.epoch_state_key()).await?.unwrap_or(EpochState {
             epoch: 0,
-            v_stable: HashMap::new(),
-            obsolete_dots: HashSet::new(),
             state_payload: Vec::new(),
             initiator_clock: HashMap::new(),
         }))
     }
-    async fn write_epoch_state(
+
+    async fn write_epoch_metadata(
         &self,
-        epoch_state: EpochState,
+        epoch_metadata: &EpochMetadata,
     ) -> anyhow::Result<()> {
         self.client.put_json(
             self.bucket(),
-            &self.epoch_entry_key(),
+            &self.epoch_metadata_key(),
+            &epoch_metadata
+        ).await
+    }
+
+    async fn write_epoch_state(
+        &self,
+        epoch_state: &EpochState,
+    ) -> anyhow::Result<()> {
+        self.client.put_json(
+            self.bucket(),
+            &self.epoch_state_key(),
             &epoch_state
         ).await
     }

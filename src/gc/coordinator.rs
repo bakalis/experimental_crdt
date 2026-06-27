@@ -1,13 +1,16 @@
-use core::option::Option::{None, Some};
+use core::mem::drop;
+use core::option::Option::{self, None, Some};
+use core::result::Result::Ok;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use std::time::Duration;
 
+use crate::metric;
 use crate::common::{Counter, NodeId};
 use crate::crdt::DeltaCrdt;
 use crate::discovery;
-use crate::gc::storage::{EpochState, GcStorage, S3GcStorage};
+use crate::gc::storage::{EpochMetadata, EpochState, GcStorage, S3GcStorage};
 use crate::gc::GcConfig;
 use crate::logical_clocks::dot_version_vector::{self, CausalContext};
 use crate::logical_clocks::dot_version_vector::DotVersionVector;
@@ -74,6 +77,36 @@ impl<S: GcStorage> GcCoordinator<S> {
 
     pub fn observe_interval(&self) -> Duration {
         self.config.observe_interval
+    }
+
+    pub async fn log_metrics(&self, node_id: &NodeId, dvv: &DotVersionVector) -> anyhow::Result<()> {
+        if !self.config.gc_replica {
+            return Ok(());
+        }
+
+        let (matrix_clock_size_bytes, v_stable) = if let Some(mc) = &self.matrix_clock {
+            let mc = mc.read().await;
+            let bytes = mc.iter()
+                .map(|(node, ctx)| {
+                    node.len() + ctx.keys().map(|n| n.len() + 8).sum::<usize>()
+                })
+                .sum::<usize>() as u64;
+
+            let m1 = self.membership.live_members().await?;
+            let final_dots = self.storage.read_final_dots().await?;
+            let (v_s, _) = self.compute_stable_timestamp(node_id, &m1, final_dots, &dvv.effective_map()).await?;
+            (bytes, v_s)
+        } else {
+            (0, HashMap::new())
+        };
+
+        metric!(
+            event = "gc_coordinator_metrics",
+            v_stable = format!("{:?}", v_stable),
+            matrix_clock_size_bytes = matrix_clock_size_bytes
+        );
+
+        Ok(())
     }
 
     pub async fn get_knowledge_matrix(&self) -> Option<MatrixClock> {
@@ -217,15 +250,21 @@ impl<S: GcStorage> GcCoordinator<S> {
             let gc_state = crdt.full_state(dvv);
             C::encode_delta(&gc_state)
         };  
+
+        let epoch_metadata = EpochMetadata {
+            epoch: n,
+            v_stable: v_stable.clone(),
+            obsolete_dots: obsolete.clone(),
+        };
         let epoch_state = EpochState {
             epoch: n,
-            v_stable,
-            obsolete_dots: obsolete,
             state_payload: gc_state_payload,
             initiator_clock: dvv.effective_map(),
         };
 
-        self.storage.write_epoch_state(epoch_state).await?;
+        self.storage.write_epoch_state(&epoch_state).await?;
+        self.storage.write_epoch_metadata(&epoch_metadata).await?;
+        drop(epoch_state);
         self.epoch = n;
 
         if let Err(e) = self.storage.release_gc_intent(n).await {
@@ -241,23 +280,16 @@ impl<S: GcStorage> GcCoordinator<S> {
         crdt: &mut C,
         dvv: &mut DotVersionVector,
     ) -> anyhow::Result<()> {
-        let epoch_state = self.storage.read_epoch_state().await?;
-        let (mut current_epoch, _, _, mut epoch_state_payload, mut initiator_clock) = 
-                                (epoch_state.epoch, epoch_state.v_stable, epoch_state.obsolete_dots, epoch_state.state_payload, epoch_state.initiator_clock);
-
+        let epoch_metadata = self.storage.read_epoch_metadata().await?;
+        let mut current_epoch = epoch_metadata.epoch;
         let next_epoch = current_epoch + 1;
 
         if self.storage.read_gc_intent(next_epoch).await?.is_some() {
             loop {
                 tokio::time::sleep(Duration::from_millis(GC_INTENT_POLL_INTERVAL_MS)).await;
-
-                let new_epoch_state = self.storage.read_epoch_state().await?;
-                let new_epoch = new_epoch_state.epoch;
-                epoch_state_payload = new_epoch_state.state_payload;
-                initiator_clock = new_epoch_state.initiator_clock;
-
+                let new_epoch_metadata = self.storage.read_epoch_metadata().await?;
+                let new_epoch = new_epoch_metadata.epoch;
                 let intent = self.storage.read_gc_intent(next_epoch).await?;
-
                 if new_epoch > current_epoch || intent.is_none() {
                     current_epoch = new_epoch;
                     break;
@@ -265,8 +297,18 @@ impl<S: GcStorage> GcCoordinator<S> {
             }
         }
 
-        let frontier = dot_version_vector::frontier_dvv(node_id, &initiator_clock);
-        crdt.merge_delta(&C::decode_delta(&epoch_state_payload)?);
+        // epoch_metadata and epoch_state are written separately, so after settling
+        // on `current_epoch` we need to make sure epoch_state has caught up.
+        let epoch_state = loop {
+            let epoch_state = self.storage.read_epoch_state().await?;
+            if epoch_state.epoch == current_epoch {
+                break epoch_state;
+            }
+            tokio::time::sleep(Duration::from_millis(GC_INTENT_POLL_INTERVAL_MS)).await;
+        };
+
+        let frontier = dot_version_vector::frontier_dvv(node_id, &epoch_state.initiator_clock);
+        crdt.merge_delta(&C::decode_delta(&epoch_state.state_payload)?);
         dvv.merge(&frontier);
         self.epoch = current_epoch;
         Ok(())
@@ -287,6 +329,8 @@ impl<S: GcStorage> GcCoordinator<S> {
         let members_set: HashSet<&NodeId> = members.iter().collect();
 
         let mut v_live: Option<HashMap<NodeId, Counter>> = None;
+        let mut v_merge: Option<HashMap<NodeId, Counter>> = None;
+
         for p in members {
             let ctx = if p == node_id {
                 self_clock
@@ -300,6 +344,11 @@ impl<S: GcStorage> GcCoordinator<S> {
             v_live = Some(match v_live.take() {
                 Option::None => ctx.clone(),
                 Some(acc) => dot_version_vector::vv_meet(&acc, ctx),
+            });
+
+            v_merge = Some(match v_merge.take() {
+                Option::None => ctx.clone(),
+                Some(acc) => dot_version_vector::vv_join(&acc, ctx),
             });
         }
 
