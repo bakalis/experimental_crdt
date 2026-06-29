@@ -6,7 +6,6 @@ use tokio::task::JoinHandle;
 use tracing::info;
 
 use crate::server::types::{CrdtType, EngineType};
-use crate::network::dissemination::SharedDissemination;
 use crate::proto::Envelope;
 use crate::engine::crdt_engine::CrdtEngineRequest;
 use crate::server::client_requests_handler;
@@ -17,7 +16,6 @@ pub async fn start_background_tasks(
     server: &Server,
     mut engine: EngineType,
     engine_tx: tokio::sync::mpsc::Sender<CrdtEngineRequest<CrdtType>>,
-    dissemination: SharedDissemination<CrdtType>,
     app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
 ) -> anyhow::Result<(
     Vec<JoinHandle<()>>,
@@ -38,9 +36,6 @@ pub async fn start_background_tasks(
         engine.run().await;
     }));
 
-    if let Some(dissemination_handle) = dissemination.start_pull_loop(engine_tx.clone()) {
-        handles.push(dissemination_handle);
-    }
     
     let listen_addr: SocketAddr = format!("0.0.0.0:{}", server.listen_port).parse()?;
 

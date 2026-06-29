@@ -186,12 +186,15 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
 
     /// Called when a client wants to perform a local write.
     async fn client_operation(&mut self, op: C::Op) {
+        let start_millis = std::time::Instant::now();
         // 1. Mint a new dot.
         self.dvv.event();
         let dot = Dot::new(self.dvv.dot.node_id.clone(), self.dvv.dot.counter);
 
         // 2. Apply to CRDT.
         self.crdt.apply_local(dot, op);
+        metric!(event = "client_operation", duration_millis = start_millis.elapsed().as_millis() as u64,
+            node_id = self.node_id, dot_counter = self.dvv.dot.counter);
         // Advertise the updated VV outside the lock so peers can compute what to send us.
         self.dissemination
             .push_version_vector(&self.node_id, &self.crdt_id, self.gc.config.gc_replica, &self.dvv.effective_map())
@@ -224,7 +227,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
 
         if let Some(matrix) = &knowledge_matrix {
             self.gc.update_matrix_clock(matrix).await;
-            let _ = self.gc.log_metrics(&self.node_id, &self.dvv).await;
+            let _ = self.gc.log_metrics(self.dissemination.get_dissemination_round(), &self.node_id, &self.dvv).await;
         } 
 
         // Merge CRDT state.
@@ -262,7 +265,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
         let mut knowledge = HashMap::new();
         knowledge.insert(from_node.clone(), remote_knowledge.clone());
         self.gc.update_matrix_clock(&knowledge).await;
-        let _ = self.gc.log_metrics(&self.node_id, &self.dvv).await;
+        let _ = self.gc.log_metrics(self.dissemination.get_dissemination_round(), &self.node_id, &self.dvv).await;
 
         let our_knowledge = self.dvv.effective_map();
         let communication_between_gc_replicas = self.gc.config.gc_replica && self

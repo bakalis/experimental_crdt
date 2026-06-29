@@ -79,7 +79,7 @@ impl<S: GcStorage> GcCoordinator<S> {
         self.config.observe_interval
     }
 
-    pub async fn log_metrics(&self, node_id: &NodeId, dvv: &DotVersionVector) -> anyhow::Result<()> {
+    pub async fn log_metrics(&self, dissemination_round: u64, node_id: &NodeId, dvv: &DotVersionVector) -> anyhow::Result<()> {
         if !self.config.gc_replica {
             return Ok(());
         }
@@ -102,6 +102,7 @@ impl<S: GcStorage> GcCoordinator<S> {
 
         metric!(
             event = "gc_coordinator_metrics",
+            dissemination_round = dissemination_round,
             v_stable = format!("{:?}", v_stable),
             matrix_clock_size_bytes = matrix_clock_size_bytes
         );

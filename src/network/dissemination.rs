@@ -5,7 +5,6 @@
 //! protobuf `CrdtOp` message. No schema changes required.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -73,7 +72,7 @@ pub trait DisseminationStrategy<C: DeltaCrdt>: Send + Sync + 'static {
     /// connected peer so they can compute and send us any delta we are missing.
     /// Pull-only and hybrid strategies implement this; push-only strategies no-op.
     fn do_pull_round(
-        &self,
+        &mut self,
         _node_id: &NodeId,
         _crdt_id: &str,
         _gc_replica: bool,
@@ -88,9 +87,13 @@ pub trait DisseminationStrategy<C: DeltaCrdt>: Send + Sync + 'static {
     fn start_pull_loop(&self, _engine_tx: tokio::sync::mpsc::Sender<CrdtEngineRequest<C>>) -> Option<JoinHandle<()>> {
         None
     }
+
+    fn get_dissemination_round(&self) -> u64 {
+        0
+    }
 }
 
-pub type SharedDissemination<C> = Arc<dyn DisseminationStrategy<C>>;
+pub type SharedDissemination<C> = Box<dyn DisseminationStrategy<C>>;
 
 // ── helpers ─────────────────────────────────────────────────────────────
 
@@ -228,6 +231,7 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PushBroadcast {
 /// Pull requests are sent as `CrdtPullRequest` messages with the serialised
 /// knowledge map as the payload.
 pub struct PullPeriodic {
+    dissemination_round: u64,
     peer_registry: PeerRegistry,
     interval: Duration,
 }
@@ -235,6 +239,7 @@ pub struct PullPeriodic {
 impl PullPeriodic {
     pub fn new(peer_registry: PeerRegistry, interval: Duration) -> Self {
         Self {
+            dissemination_round: 0,
             peer_registry,
             interval,
         }
@@ -279,7 +284,7 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PullPeriodic {
     }
 
     fn do_pull_round(
-        &self,
+        &mut self,
         node_id: &NodeId,
         crdt_id: &str,
         gc_replica: bool,
@@ -291,8 +296,13 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PullPeriodic {
             .peer_ids()
             .choose(&mut rand::thread_rng())
         {
+            self.dissemination_round += 1;
             let _ = self.peer_registry.send_to_peer(random_peer_id, envelope);
         }
+    }
+    
+    fn get_dissemination_round(&self) -> u64 {
+        self.dissemination_round
     }
 
     fn start_pull_loop(&self, engine_tx: tokio::sync::mpsc::Sender<CrdtEngineRequest<C>>) -> Option<JoinHandle<()>> {
@@ -396,7 +406,7 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PushPull {
     }
 
     fn do_pull_round(
-        &self,
+        &mut self,
         node_id: &NodeId,
         crdt_id: &str,
         gc_replica: bool,

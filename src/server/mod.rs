@@ -91,7 +91,7 @@ impl Server {
 
         // ── Build dissemination strategy ─────────────────────────────
         // Pull-only: peers periodically request deltas from each other.
-        let dissemination: SharedDissemination<CrdtType> = Arc::new(PullPeriodic::new(
+        let dissemination: SharedDissemination<CrdtType> = Box::new(PullPeriodic::new(
             self.registry.clone(),
             std::time::Duration::from_secs(1),
         ));
@@ -100,19 +100,27 @@ impl Server {
 
         let (engine_tx, engine_rx) = tokio::sync::mpsc::channel::<CrdtEngineRequest<CrdtType>>(1024);
 
+        let mut handles = vec![];
+
+        if let Some(dissemination_handle) = dissemination.start_pull_loop(engine_tx.clone()) {
+            handles.push(dissemination_handle);
+        }
+
         // ── Build CRDT engine (OR-Set<String>) ───────────────────────
         let engine: EngineType = EngineType::new(
             self.node_id.clone(),
             "default-orset".to_string(),
             OrSet::new(),
             self.registry.clone(),
-            dissemination.clone(),
+            dissemination,
             (gc_storage_client, gc_config),
             engine_rx,
         );
 
-        let (handles, listener) = initializer::start_background_tasks(self, engine, engine_tx.clone(), dissemination.clone(), app_tx.clone())
+        let (new_handles, listener) = initializer::start_background_tasks(self, engine, engine_tx.clone(), app_tx.clone())
             .await?;
+
+        handles.extend(new_handles);
 
         let print_metrics_interval = std::time::Duration::from_secs(10);
         let mut metrics_interval = tokio::time::interval(print_metrics_interval);
