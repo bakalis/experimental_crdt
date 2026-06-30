@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
 use std::net::SocketAddr;
+use tokio::task::JoinSet;
+use tokio_util::sync::CancellationToken;
 
 pub mod error;
 
@@ -36,4 +38,19 @@ pub async fn wait_for_shutdown_signal() {
         _ = ctrl_c => {},
         _ = terminate => {},
     }
+}
+
+pub async fn shutdown_processes(shutdown: CancellationToken, mut join_set: JoinSet<()>) -> anyhow::Result<()> {
+    tracing::info!("shutdown signal received, cancelling all tasks");
+    shutdown.cancel();
+
+    // Wait for every spawned server to actually finish.
+    while let Some(res) = join_set.join_next().await {
+        if let Err(e) = res {
+            eprintln!("task panicked: {:?}", e);
+        }
+    }
+
+    tracing::info!("all servers shut down cleanly");
+    Ok(())
 }

@@ -167,26 +167,14 @@ async fn main() -> anyhow::Result<()> {
         let shutdown_clone = shutdown.clone();
         join_set.spawn(async move {
             if let Err(e) = init_and_run_server(config_info_clone, node_name, node_port, gc_replica, 
-                app_tx, app_rx, network_clone, shutdown_clone).await {
+                (app_tx, app_rx), network_clone, shutdown_clone).await {
                 eprintln!("Error running server {}: {:?}", node_addr, e);
             }
         });
     }
 
     common::wait_for_shutdown_signal().await;
-    tracing::info!("shutdown signal received, cancelling all tasks");
-    shutdown.cancel();
-
-    // Wait for every spawned server to actually finish.
-    while let Some(res) = join_set.join_next().await {
-        if let Err(e) = res {
-            eprintln!("task panicked: {:?}", e);
-        }
-    }
-
-    tracing::info!("all servers shut down cleanly");
-    Ok(())
-    
+    common::shutdown_processes(shutdown, join_set).await
 }
 
 async fn init_and_run_server(
@@ -194,11 +182,11 @@ async fn init_and_run_server(
     node_name: String,
     listen_port: u16,
     gc_replica: bool,
-    app_tx: mpsc::Sender<Envelope>,
-    app_rx: mpsc::Receiver<Envelope>,
+    app_mpsc: (mpsc::Sender<Envelope>, mpsc::Receiver<Envelope>),
     network: Arc<SimulatedNetwork>,
     shutdown: CancellationToken
 ) -> anyhow::Result<()> {
+    let (app_tx, app_rx) = app_mpsc;
 
     let discovery_cfg = discovery::DiscoveryConfig {
         endpoint: config_info.endpoint,

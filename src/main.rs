@@ -165,18 +165,7 @@ async fn main() -> anyhow::Result<()> {
     });
     
     common::wait_for_shutdown_signal().await;
-    tracing::info!("shutdown signal received, cancelling all tasks");
-    shutdown.cancel();
-
-    // Wait for every spawned server to actually finish.
-    while let Some(res) = join_set.join_next().await {
-        if let Err(e) = res {
-            eprintln!("task panicked: {:?}", e);
-        }
-    }
-
-    tracing::info!("all servers shut down cleanly");
-    Ok(())
+    common::shutdown_processes(shutdown, join_set).await
 }
 
 
