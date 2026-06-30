@@ -139,7 +139,6 @@ async fn run_connection(
     let (tx, rx) = mpsc::channel::<Envelope>(CHANNEL_BUF);
     registry.insert(
         remote_node_id.clone(),
-        addr,
         remote_gc_replica,
         PeerHandle { tx },
     );

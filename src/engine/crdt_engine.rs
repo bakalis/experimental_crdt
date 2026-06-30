@@ -272,7 +272,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             .gc
             .registry
             .get(&from_node)
-            .map(|(_, gc_replica, _)| gc_replica)
+            .map(|(gc_replica, _)| gc_replica)
             .unwrap_or(false);
 
         // Compute delta if we are ahead of the remote in any dimension.
@@ -299,7 +299,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             .gc
             .registry
             .get(&from_node)
-            .map(|(_, gc_replica, _)| gc_replica)
+            .map(|(gc_replica, _)| gc_replica)
             .unwrap_or(false)
         {
             self.gc.get_knowledge_matrix().await

@@ -6,7 +6,6 @@
 //! mutated infrequently (add/remove peers at runtime).
 
 use dashmap::DashMap;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
@@ -26,7 +25,7 @@ pub struct PeerHandle {
 /// Concurrent, clonable registry of all active peers.
 #[derive(Debug, Clone)]
 pub struct PeerRegistry {
-    peers: Arc<DashMap<NodeId, (SocketAddr, GcReplica, PeerHandle)>>,
+    peers: Arc<DashMap<NodeId, (GcReplica, PeerHandle)>>,
 }
 
 impl PeerRegistry {
@@ -40,17 +39,16 @@ impl PeerRegistry {
     pub fn insert(
         &self,
         node_id: NodeId,
-        addr: SocketAddr,
         gc_replica: GcReplica,
         handle: PeerHandle,
     ) {
-        info!(%addr, "peer registered");
-        self.peers.insert(node_id, (addr, gc_replica, handle));
+        info!(%node_id, "peer registered");
+        self.peers.insert(node_id, (gc_replica, handle));
     }
 
     /// Remove a peer from the registry. Returns the old handle if present.
     pub fn remove(&self, node_id: &NodeId) -> Option<PeerHandle> {
-        let removed = self.peers.remove(node_id).map(|(_, (_, _, h))| h);
+        let removed = self.peers.remove(node_id).map(|(_, (_, h))| h);
         if removed.is_some() {
             info!(%node_id, "peer removed");
         } else {
@@ -60,7 +58,7 @@ impl PeerRegistry {
     }
 
     /// Retrieve a cloned handle for a specific peer.
-    pub fn get(&self, node_id: &NodeId) -> Option<(SocketAddr, GcReplica, PeerHandle)> {
+    pub fn get(&self, node_id: &NodeId) -> Option<(GcReplica, PeerHandle)> {
         self.peers.get(node_id).map(|r| r.value().clone())
     }
 
@@ -72,7 +70,7 @@ impl PeerRegistry {
     pub fn get_all_non_gc_replicas(&self) -> Vec<NodeId> {
         self.peers
             .iter()
-            .filter(|r| !r.value().1) // Filter out GC replicas
+            .filter(|r| !r.value().0) // Filter out GC replicas
             .map(|r| r.key().clone())
             .collect()
     }
@@ -81,7 +79,7 @@ impl PeerRegistry {
         if let Some(entry) = self.peers.get(node_id) {
             entry
                 .value()
-                .2
+                .1
                 .tx
                 .try_send(envelope)
                 .map_err(|e| format!("failed to send to peer {}: {}", node_id, e))
@@ -94,9 +92,9 @@ impl PeerRegistry {
     /// Skips peers whose channel is full / closed and logs a warning.
     pub fn broadcast(&self, envelope: Envelope) {
         for entry in self.peers.iter() {
-            let addr = entry.value().0;
-            if let Err(e) = entry.value().2.tx.try_send(envelope.clone()) {
-                warn!(%addr, %e, "failed to enqueue message for peer");
+            let node_id = entry.key();
+            if let Err(e) = entry.value().1.tx.try_send(envelope.clone()) {
+                warn!(%node_id, %e, "failed to enqueue message for peer");
             }
         }
     }

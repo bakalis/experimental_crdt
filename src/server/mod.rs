@@ -177,9 +177,9 @@ impl Server {
         }
         
         let mut tasks = self.outbound_tasks.lock().await;
-        for (_, (addr, handle)) in tasks.drain() {
+        for (node_id, handle) in tasks.drain() {
             handle.abort();
-            info!(%addr, "aborted outbound task");
+            info!(%node_id, "aborted outbound task");
         }
 
         info!(node_id = %self.node_id, "shutdown complete");

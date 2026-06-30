@@ -51,15 +51,15 @@ impl PeerConnector {
             self.registry.clone(),
             self.app_tx.clone(),
         );
-        tasks.insert(node_id, (address, handle));
+        tasks.insert(node_id, handle);
         info!(%addr, "outbound peer task spawned");
         Ok(())
     }
 
     pub async fn remove_peer(&self, node_id: NodeId) {
-        if let Some((addr, handle)) = self.outbound_tasks.lock().await.remove(&node_id) {
+        if let Some(handle) = self.outbound_tasks.lock().await.remove(&node_id) {
             handle.abort();
-            info!(%addr, "outbound task aborted");
+            info!(%node_id, "outbound task aborted");
         }
         self.registry.remove(&node_id);
     }
