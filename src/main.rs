@@ -10,6 +10,7 @@ mod storage;
 mod server;
 mod logging;
 
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use clap::Parser;
 use core::option::Option;
@@ -18,6 +19,7 @@ use dotenvy::dotenv;
 use std::collections::HashSet;
 use crate::peers::discovery;
 use crate::proto::Envelope;
+use crate::network::tcp_connection::TcpNetwork;
 
 /// CRDT replication server with S3-based peer discovery.
 #[derive(Parser, Debug)]
@@ -149,5 +151,6 @@ async fn main() -> anyhow::Result<()> {
 
     let (app_tx, app_rx) = mpsc::channel::<Envelope>(1024);
     let server = server::Server::new(server_config, discovery_cfg).await?;
-    server.run(gc_config, app_tx, app_rx).await
+    let network = Arc::new(TcpNetwork);
+    server.run(gc_config, app_tx, app_rx, network).await
 }

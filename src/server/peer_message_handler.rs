@@ -1,41 +1,9 @@
-use std::net::SocketAddr;
-use tokio::sync::mpsc;
 use tracing::{error, info};
 
-use crate::server::connection;
 use crate::proto::Envelope;
 use crate::proto::envelope::Payload;
 use crate::engine::crdt_engine::CrdtEngineRequest;
 use crate::server::types::{CrdtType};
-use crate::peers::peer_registry::PeerRegistry;
-
-pub fn handle_accepted_connection(
-    node_id: String,
-    node_name: String,
-    gc_replica: bool,
-    registry: PeerRegistry,
-    app_tx: mpsc::Sender<Envelope>,
-    accept_result: std::io::Result<(tokio::net::TcpStream, SocketAddr)>,
-) {
-    match accept_result {
-        Ok((stream, remote_addr)) => {
-            info!(%remote_addr, "accepted inbound connection");
-            tokio::spawn(async move {
-                connection::handle_inbound(
-                    stream,
-                    remote_addr,
-                    &node_id,
-                    &node_name,
-                    gc_replica,
-                    &registry,
-                    &app_tx,
-                )
-                .await;
-            });
-        }
-        Err(e) => error!(%e, "accept failed"),
-    }
-}
 
 pub async fn handle_received_envelope(
     envelope: Envelope,

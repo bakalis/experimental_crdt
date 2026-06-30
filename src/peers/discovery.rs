@@ -252,11 +252,6 @@ impl Discovery {
             let desired_ids: HashSet<NodeId> = desired.keys().cloned().collect();
 
             for node_id in desired_ids.difference(&current) {
-                if self.node_id >= *node_id {
-                    debug!(%node_id, "skipping peer with lower or equal node_id");
-                    continue;
-                }
-
                 let registration = desired.get(node_id).unwrap();
                 let addr = registration.addr.clone();
 

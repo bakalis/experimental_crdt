@@ -9,8 +9,8 @@ use tokio::task::JoinHandle;
 use tracing::{info, error};
 use tokio::signal::unix::{signal, SignalKind};
 
+use crate::network::Network;
 use crate::server::types::{CrdtType, EngineType, OutboundTasks};
-use crate::network::connection;
 use crate::engine::crdt_engine::{CrdtEngineRequest};
 use crate::crdt::or_set::OrSet;
 use crate::discovery::{Discovery, DiscoveryConfig};
@@ -21,6 +21,7 @@ use crate::proto::Envelope;
 use crate::storage::s3_client::S3Client;
 
 // ── Server ──────────────────────────────────────────────────────────────
+#[derive(Clone)]
 pub struct ServerConfig {
     pub listen_host: String,
     pub listen_port: String,
@@ -86,7 +87,8 @@ impl Server {
 
     pub async fn run(&self, gc_config: GcConfig,
         app_tx: mpsc::Sender<Envelope>,
-        mut app_rx: mpsc::Receiver<Envelope>
+        mut app_rx: mpsc::Receiver<Envelope>,
+        network: Arc<dyn Network>
     ) -> anyhow::Result<()> {
         let prefix = gc_config.storage_config.prefix.clone();
 
@@ -118,7 +120,7 @@ impl Server {
             engine_rx,
         );
 
-        let (new_handles, listener) = initializer::start_background_tasks(self, engine, engine_tx.clone(), app_tx.clone())
+        let new_handles = initializer::start_background_tasks(self, engine, engine_tx.clone(), app_tx.clone(), network, self.registry.clone())
             .await?;
 
         handles.extend(new_handles);
@@ -129,12 +131,6 @@ impl Server {
         // Run Main Loop
         loop {
             tokio::select! {
-                accept_result = listener.accept() => {
-                    peer_message_handler::handle_accepted_connection(self.node_id.clone(),
-                    self.node_name.clone(), self.gc_replica, self.registry.clone(),
-                    app_tx.clone(), accept_result);
-                }
-                
                 Some(envelope) = app_rx.recv() => {
                     peer_message_handler::handle_received_envelope(envelope, engine_tx.clone()).await;
                 }

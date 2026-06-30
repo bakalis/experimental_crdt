@@ -16,11 +16,11 @@ use tokio::sync::mpsc;
 use tokio::time;
 use tracing::{debug, error, info, warn};
 
-use crate::common::NodeId;
+use crate::common::{self, NodeId};
 use crate::common::error::{Error, Result};
 use crate::peers::peer_registry::{PeerHandle, PeerRegistry};
 use crate::proto::{self, envelope::Payload, Envelope};
-use crate::network::protocol;
+use crate::network::{Network, protocol};
 
 // ── tunables ────────────────────────────────────────────────────────────
 
@@ -28,6 +28,40 @@ const CHANNEL_BUF: usize = 256;
 const RECONNECT_BASE: Duration = Duration::from_secs(1);
 const RECONNECT_MAX: Duration = Duration::from_secs(30);
 
+pub struct TcpNetwork;
+
+impl Network for TcpNetwork {
+    fn spawn_outbound(
+        &self,
+        address: String,
+        local_node_id: NodeId,
+        local_node_name: NodeId,
+        gc_replica: bool,
+        registry: PeerRegistry,
+        app_tx: mpsc::Sender<Envelope>,
+    ) -> tokio::task::JoinHandle<()> {
+        spawn_outbound(
+            address,
+            local_node_id,
+            local_node_name,
+            gc_replica,
+            registry,
+            app_tx,
+        )
+    }
+
+    fn start_network_background(&self, listen_port: String,
+        node_id: String,
+        node_name: String,
+        gc_replica: bool,
+        registry: PeerRegistry,
+        app_tx: mpsc::Sender<Envelope>,
+    ) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            let _ = bind_and_listen(listen_port, node_id, node_name, gc_replica, registry, app_tx).await;
+        })
+    }
+}
 // ── public entry points ─────────────────────────────────────────────────
 
 /// Spawn a supervised outbound connection that will keep retrying.
@@ -35,7 +69,7 @@ const RECONNECT_MAX: Duration = Duration::from_secs(30);
 /// Returns a `JoinHandle` and a `CancellationToken`-style `mpsc::Sender`
 /// whose drop will cause the task tree to shut down.
 pub fn spawn_outbound(
-    addr: SocketAddr,
+    address: String,
     local_node_id: NodeId,
     local_node_name: NodeId,
     gc_replica: bool,
@@ -43,35 +77,43 @@ pub fn spawn_outbound(
     app_tx: mpsc::Sender<Envelope>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        let mut backoff = RECONNECT_BASE;
-        loop {
-            info!(%addr, "connecting to peer…");
-            match TcpStream::connect(addr).await {
-                Ok(stream) => {
-                    info!(%addr, "TCP connected");
-                    backoff = RECONNECT_BASE; // reset on success
-                    if let Err(e) = run_connection(
-                        stream,
-                        addr,
-                        &local_node_id,
-                        &local_node_name,
-                        gc_replica,
-                        &registry,
-                        &app_tx,
-                        true, // we are the initiator
-                    )
-                    .await
-                    {
-                        warn!(%addr, %e, "connection terminated");
+        let addr = common::lookup(&address).await;
+        match addr {
+            Err(e) => {
+                error!(%address, %e, "failed to resolve address");
+            },
+            Ok(addr) => {
+                let mut backoff = RECONNECT_BASE;
+                loop {
+                    info!(%addr, "connecting to peer…");
+                    match TcpStream::connect(addr).await {
+                        Ok(stream) => {
+                            info!(%addr, "TCP connected");
+                            backoff = RECONNECT_BASE; // reset on success
+                            if let Err(e) = run_connection(
+                                stream,
+                                addr,
+                                &local_node_id,
+                                &local_node_name,
+                                gc_replica,
+                                &registry,
+                                &app_tx,
+                                true, // we are the initiator
+                            )
+                            .await
+                            {
+                                warn!(%addr, %e, "connection terminated");
+                            }
+                        }
+                        Err(e) => {
+                            warn!(%addr, %e, "connection failed");
+                        }
                     }
-                }
-                Err(e) => {
-                    warn!(%addr, %e, "connection failed");
+                    info!(%addr, ?backoff, "will reconnect after backoff");
+                    time::sleep(backoff).await;
+                    backoff = (backoff * 2).min(RECONNECT_MAX);
                 }
             }
-            info!(%addr, ?backoff, "will reconnect after backoff");
-            time::sleep(backoff).await;
-            backoff = (backoff * 2).min(RECONNECT_MAX);
         }
     })
 }
@@ -263,4 +305,61 @@ async fn writer_loop(
         }
     }
     debug!(%addr, "writer channel closed");
+}
+
+pub async fn bind_and_listen(
+    listen_port: String,
+    node_id: String,
+    node_name: String,
+    gc_replica: bool,
+    registry: PeerRegistry,
+    app_tx: mpsc::Sender<Envelope>,
+) -> anyhow::Result<()> {
+    let listen_addr: SocketAddr = format!("0.0.0.0:{}", listen_port).parse()?;
+    let listener = tokio::net::TcpListener::bind(listen_addr).await?;
+    info!(
+        addr = %listen_addr,
+        node_id = %node_id,
+        "listening"
+    );
+    loop {
+        let accept_result = listener.accept().await;
+        handle_accepted_connection(
+            node_id.clone(),
+            node_name.clone(),
+            gc_replica,
+            registry.clone(),
+            app_tx.clone(),
+            accept_result,
+        );
+    }
+}
+
+
+pub fn handle_accepted_connection(
+    node_id: String,
+    node_name: String,
+    gc_replica: bool,
+    registry: PeerRegistry,
+    app_tx: mpsc::Sender<Envelope>,
+    accept_result: std::io::Result<(tokio::net::TcpStream, SocketAddr)>,
+) {
+    match accept_result {
+        Ok((stream, remote_addr)) => {
+            info!(%remote_addr, "accepted inbound connection");
+            tokio::spawn(async move {
+                handle_inbound(
+                    stream,
+                    remote_addr,
+                    &node_id,
+                    &node_name,
+                    gc_replica,
+                    &registry,
+                    &app_tx,
+                )
+                .await;
+            });
+        }
+        Err(e) => error!(%e, "accept failed"),
+    }
 }
