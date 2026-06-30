@@ -6,8 +6,8 @@ pub mod initializer;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use tracing::{info, error};
-use tokio::signal::unix::{signal, SignalKind};
 
 use crate::network::Network;
 use crate::server::types::{CrdtType, EngineType, OutboundTasks};
@@ -39,13 +39,6 @@ pub struct Server {
     registry: PeerRegistry,
     discovery: Arc<Discovery>,
     outbound_tasks: Arc<Mutex<OutboundTasks>>,
-}
-
-async fn shutdown_signal() {
-    let mut sigterm = signal(SignalKind::terminate())
-        .expect("failed to install SIGTERM handler");
-
-    sigterm.recv().await;
 }
 
 impl Server {
@@ -88,7 +81,8 @@ impl Server {
     pub async fn run(&self, gc_config: GcConfig,
         app_tx: mpsc::Sender<Envelope>,
         mut app_rx: mpsc::Receiver<Envelope>,
-        network: Arc<dyn Network>
+        network: Arc<dyn Network>,
+        shutdown: CancellationToken
     ) -> anyhow::Result<()> {
         let prefix = gc_config.storage_config.prefix.clone();
 
@@ -139,13 +133,7 @@ impl Server {
                     engine_tx.send(CrdtEngineRequest::LogCrdtMetrics).await?;
                 }
 
-                // TODO: also handle all other shutdown signals (SIGINT, SIGTERM, etc.)
-                // and do graceful shutdown.
-                _ = tokio::signal::ctrl_c() => {
-                    self.handle_shutdown(engine_tx.clone(), &handles, prefix).await?;
-                    return Ok(());
-                }
-                _ = shutdown_signal() => {
+                _ = shutdown.cancelled() => {
                     self.handle_shutdown(engine_tx.clone(), &handles, prefix).await?;
                     return Ok(());
                 }

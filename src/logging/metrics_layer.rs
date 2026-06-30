@@ -5,6 +5,8 @@ use std::{
 };
 use tracing::{Event, Subscriber};
 use tracing_subscriber::{layer::Context, Layer};
+use std::fs;
+use std::path::Path;
 
 pub struct MetricsLayer {
     file: Mutex<File>,
@@ -12,6 +14,14 @@ pub struct MetricsLayer {
 
 impl MetricsLayer {
     pub fn new(path: &str) -> Self {
+        println!("Metrics will be logged to: {}", path);
+        let path = Path::new(path);
+
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .expect("Failed to create metrics directory");
+        }
+
         let file = OpenOptions::new()
             .create(true)
             .append(true)

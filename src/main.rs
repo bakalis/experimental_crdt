@@ -12,6 +12,8 @@ mod logging;
 
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use tokio::task::JoinSet;
+use tokio_util::sync::CancellationToken;
 use clap::Parser;
 use core::option::Option;
 use std::time::Duration;
@@ -148,9 +150,33 @@ async fn main() -> anyhow::Result<()> {
             None
         },
     };
+    let shutdown = CancellationToken::new();
+    let mut join_set: JoinSet<()> = JoinSet::new();
 
     let (app_tx, app_rx) = mpsc::channel::<Envelope>(1024);
     let server = server::Server::new(server_config, discovery_cfg).await?;
     let network = Arc::new(TcpNetwork);
-    server.run(gc_config, app_tx, app_rx, network).await
+    let shutdown_clone = shutdown.clone();
+
+    join_set.spawn(async move {
+        if let Err(e) = server.run(gc_config, app_tx, app_rx, network, shutdown_clone).await {
+            eprintln!("server run failed: {:?}", e);
+        }
+    });
+    
+    common::wait_for_shutdown_signal().await;
+    tracing::info!("shutdown signal received, cancelling all tasks");
+    shutdown.cancel();
+
+    // Wait for every spawned server to actually finish.
+    while let Some(res) = join_set.join_next().await {
+        if let Err(e) = res {
+            eprintln!("task panicked: {:?}", e);
+        }
+    }
+
+    tracing::info!("all servers shut down cleanly");
+    Ok(())
 }
+
+
