@@ -14,7 +14,7 @@ pub fn handle_accepted_connection(
     node_name: String,
     gc_replica: bool,
     registry: PeerRegistry,
-    app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
+    app_tx: mpsc::Sender<Envelope>,
     accept_result: std::io::Result<(tokio::net::TcpStream, SocketAddr)>,
 ) {
     match accept_result {
@@ -39,7 +39,6 @@ pub fn handle_accepted_connection(
 
 pub async fn handle_received_envelope(
     envelope: Envelope,
-    addr: SocketAddr,
     engine_tx: tokio::sync::mpsc::Sender<CrdtEngineRequest<CrdtType>>,
 ) {
     // Route CRDT operations to the engine.
@@ -88,7 +87,7 @@ pub async fn handle_received_envelope(
             }
         }
         other => {
-            info!(%addr, ?other, "app received non-CRDT message");
+            info!(?other, "app received non-CRDT message");
         }
     }
 }

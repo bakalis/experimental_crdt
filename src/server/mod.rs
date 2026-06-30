@@ -3,7 +3,6 @@ pub mod client_requests_handler;
 pub mod peer_message_handler;
 pub mod initializer;
 
-use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tokio::task::JoinHandle;
@@ -85,8 +84,10 @@ impl Server {
         })
     }
 
-    pub async fn run(&self, gc_config: GcConfig) -> anyhow::Result<()> {
-        let (app_tx, mut app_rx) = mpsc::channel::<(SocketAddr, Envelope)>(1024);
+    pub async fn run(&self, gc_config: GcConfig,
+        app_tx: mpsc::Sender<Envelope>,
+        mut app_rx: mpsc::Receiver<Envelope>
+    ) -> anyhow::Result<()> {
         let prefix = gc_config.storage_config.prefix.clone();
 
         // ── Build dissemination strategy ─────────────────────────────
@@ -134,8 +135,8 @@ impl Server {
                     app_tx.clone(), accept_result);
                 }
                 
-                Some((addr, envelope)) = app_rx.recv() => {
-                    peer_message_handler::handle_received_envelope(envelope, addr, engine_tx.clone()).await;
+                Some(envelope) = app_rx.recv() => {
+                    peer_message_handler::handle_received_envelope(envelope, engine_tx.clone()).await;
                 }
 
                 _ = metrics_interval.tick() => {

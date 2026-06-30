@@ -1,4 +1,3 @@
-use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{Mutex, mpsc};
 use tracing::info;
@@ -15,7 +14,7 @@ pub struct PeerConnector {
     node_name: String,
     gc_replica: bool,
     registry: PeerRegistry,
-    app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
+    app_tx: mpsc::Sender<Envelope>,
     outbound_tasks: Arc<Mutex<OutboundTasks>>,
 }
 
@@ -25,7 +24,7 @@ impl PeerConnector {
         node_name: String,
         gc_replica: bool,
         registry: PeerRegistry,
-        app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
+        app_tx: mpsc::Sender<Envelope>,
         outbound_tasks: Arc<Mutex<OutboundTasks>>,
     ) -> Self {
         Self {

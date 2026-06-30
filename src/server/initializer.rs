@@ -16,7 +16,7 @@ pub async fn start_background_tasks(
     server: &Server,
     mut engine: EngineType,
     engine_tx: tokio::sync::mpsc::Sender<CrdtEngineRequest<CrdtType>>,
-    app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
+    app_tx: mpsc::Sender<Envelope>,
 ) -> anyhow::Result<(
     Vec<JoinHandle<()>>,
     TcpListener,
@@ -51,7 +51,7 @@ pub async fn start_background_tasks(
 
 pub async fn start_discovery(
     server: &Server,
-    app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
+    app_tx: mpsc::Sender<Envelope>,
 ) -> anyhow::Result<JoinHandle<()>> {
     server.discovery.register().await?;
 

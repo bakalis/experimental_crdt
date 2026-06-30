@@ -40,7 +40,7 @@ pub fn spawn_outbound(
     local_node_name: NodeId,
     gc_replica: bool,
     registry: PeerRegistry,
-    app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
+    app_tx: mpsc::Sender<Envelope>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut backoff = RECONNECT_BASE;
@@ -84,7 +84,7 @@ pub async fn handle_inbound(
     local_node_name: &str,
     gc_replica: bool,
     registry: &PeerRegistry,
-    app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
+    app_tx: &mpsc::Sender<Envelope>,
 ) {
     match run_connection(
         stream,
@@ -116,7 +116,7 @@ async fn run_connection(
     local_node_name: &str,
     gc_replica: bool,
     registry: &PeerRegistry,
-    app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
+    app_tx: &mpsc::Sender<Envelope>,
     initiator: bool,
 ) -> Result<NodeId> {
     stream.set_nodelay(true)?;
@@ -221,7 +221,7 @@ async fn receive_handshake(
 async fn reader_loop(
     reader: &mut ReadHalf<TcpStream>,
     addr: SocketAddr,
-    app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
+    app_tx: &mpsc::Sender<Envelope>,
 ) -> Result<()> {
     loop {
         match protocol::read_envelope(reader).await? {
@@ -234,14 +234,14 @@ async fn reader_loop(
 async fn dispatch(
     envelope: Envelope,
     addr: SocketAddr,
-    app_tx: &mpsc::Sender<(SocketAddr, Envelope)>,
+    app_tx: &mpsc::Sender<Envelope>,
 ) -> Result<()> {
     match &envelope.payload {
         Some(Payload::CrdtOp(_))
         | Some(Payload::CrdtPullRequest(_))
         | Some(Payload::Handshake(_)) => {
             // Forward to the application layer for processing.
-            let _ = app_tx.send((addr, envelope)).await;
+            let _ = app_tx.send(envelope).await;
         }
         Option::None => {
             warn!(%addr, "received envelope with no payload");
