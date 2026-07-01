@@ -8,6 +8,7 @@
 //! On failure the tasks exit and a supervising reconnect loop
 //! (in [`spawn_outbound`]) will back off and retry.
 
+use prost::Message;
 use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::io::{ReadHalf, WriteHalf};
@@ -16,6 +17,7 @@ use tokio::sync::mpsc;
 use tokio::time;
 use tracing::{debug, error, info, warn};
 
+use crate::metric;
 use crate::common::{self, NodeId};
 use crate::common::error::{Error, Result};
 use crate::peers::peer_registry::{PeerHandle, PeerRegistry};
@@ -186,7 +188,7 @@ async fn run_connection(
     );
 
     // ── spawn writer task ───────────────────────────────────────────
-    let writer_handle = tokio::spawn(writer_loop(writer, rx, addr));
+    let writer_handle = tokio::spawn(writer_loop(local_node_id.to_string(), writer, rx, addr));
 
     // ── reader loop (runs on current task) ──────────────────────────
     let reader_result = reader_loop(&mut reader, addr, app_tx).await;
@@ -294,11 +296,14 @@ async fn dispatch(
 // ── write loop ──────────────────────────────────────────────────────────
 
 async fn writer_loop(
+    local_node_id: NodeId,
     mut writer: WriteHalf<TcpStream>,
     mut rx: mpsc::Receiver<Envelope>,
     addr: SocketAddr,
 ) {
     while let Some(envelope) = rx.recv().await {
+        let len = envelope.encoded_len();
+        metric!(node_id = local_node_id, event = "send_envelope", size_bytes = len as u64);
         if let Err(e) = protocol::write_envelope(&mut writer, &envelope).await {
             error!(%addr, %e, "write failed — exiting writer");
             return;

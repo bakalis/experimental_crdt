@@ -1,11 +1,13 @@
 #![allow(dead_code)]
 
 use core::option::Option::Some;
+use prost::Message;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 use std::sync::Arc;
 use tracing::{error, debug, warn};
 
+use crate::metric;
 use crate::network::Network;
 use crate::common::NodeId;
 use crate::common::error::Result;
@@ -97,18 +99,21 @@ impl SimulatedNetwork {
             );
 
             // ── spawn writer task ───────────────────────────────────────────
-            Self::writer_loop(remote_node_id.to_string(), remote_tx.clone(), rx).await;
+            Self::writer_loop(local_node_id.to_string(), remote_node_id.to_string(), remote_tx.clone(), rx).await;
             return Ok(remote_node_id.to_string());
         }
         Ok(local_node_id.to_string())
     }
 
     async fn writer_loop(
+        local_node_id: NodeId,
         remote_node_id: NodeId,
         remote_tx: mpsc::Sender<Envelope>,
         mut rx: mpsc::Receiver<Envelope>,
     ) {
         while let Some(envelope) = rx.recv().await {
+            let len = envelope.encoded_len();
+            metric!(node_id = local_node_id, event = "send_envelope", size_bytes = len as u64);
             if let Err(e) = remote_tx.send(envelope).await {
                 error!(%remote_node_id, %e, "write failed — exiting writer");
                 return;

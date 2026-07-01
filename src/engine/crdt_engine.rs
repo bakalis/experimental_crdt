@@ -193,7 +193,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
 
         // 2. Apply to CRDT.
         self.crdt.apply_local(dot, op);
-        metric!(event = "client_operation", duration_millis = start_millis.elapsed().as_millis() as u64,
+        metric!(node_id = self.node_id, event = "client_operation", duration_millis = start_millis.elapsed().as_millis() as u64,
             node_id = self.node_id, dot_counter = self.dvv.dot.counter);
         // Advertise the updated VV outside the lock so peers can compute what to send us.
         self.dissemination
@@ -329,7 +329,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             Ok(changed) => *changed,
             Err(_) => false,
         };
-        metric!(event = "gc_observe_epoch_change",
+        metric!(node_id = self.node_id, event = "gc_observe_epoch_change",
             duration_millis = start_millis.elapsed().as_millis() as u64,
             epoch_changed = epoch_changed);
         result
@@ -349,7 +349,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             Err(_) => (true, "None".to_string())
         };
 
-        metric!(event = "gc_initiate",
+        metric!(node_id = self.node_id, event = "gc_initiate",
             duration_millis = start_millis.elapsed().as_millis() as u64,
             abort = abort,
             abort_reason = abort_reason);
@@ -362,7 +362,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             .new_replica_bootstrap(&self.node_id, &mut self.crdt, &mut self.dvv)
             .await;
 
-        metric!(event = "new_replica_bootstrap",
+        metric!(node_id = self.node_id, event = "new_replica_bootstrap",
             duration_millis = start_millis.elapsed().as_millis() as u64);
         result 
     }

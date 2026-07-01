@@ -1,14 +1,21 @@
 use tracing::{error, info};
 
+use prost::Message;
+
+use crate::common::NodeId;
+use crate::metric;
 use crate::proto::Envelope;
 use crate::proto::envelope::Payload;
 use crate::engine::crdt_engine::CrdtEngineRequest;
 use crate::server::types::{CrdtType};
 
 pub async fn handle_received_envelope(
+    node_id: NodeId,
     envelope: Envelope,
     engine_tx: tokio::sync::mpsc::Sender<CrdtEngineRequest<CrdtType>>,
 ) {
+    let len = envelope.encoded_len();
+    metric!(node_id = node_id, event = "receive_envelope", size_bytes = len as u64);
     // Route CRDT operations to the engine.
     match envelope.payload {
         Some(Payload::CrdtOp(crdt_op)) => {

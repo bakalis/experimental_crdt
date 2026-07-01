@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
+use crate::crdt::or_set::OrSetOp;
 use crate::network::Network;
 use crate::peers::peer_registry::PeerRegistry;
 use crate::server::types::{CrdtType, EngineType};
@@ -42,6 +43,7 @@ pub async fn start_background_tasks(
         engine.run().await;
     }));
 
+    engine_tx.send(CrdtEngineRequest::ClientOperation(OrSetOp::Add(format!("test-{}", &server.node_id)))).await?;
     Ok(handles) 
 }
 

@@ -126,7 +126,7 @@ impl Server {
         loop {
             tokio::select! {
                 Some(envelope) = app_rx.recv() => {
-                    peer_message_handler::handle_received_envelope(envelope, engine_tx.clone()).await;
+                    peer_message_handler::handle_received_envelope(self.node_id.clone(), envelope, engine_tx.clone()).await;
                 }
 
                 _ = metrics_interval.tick() => {

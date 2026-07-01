@@ -101,6 +101,7 @@ impl<S: GcStorage> GcCoordinator<S> {
         };
 
         metric!(
+            node_id = node_id,
             event = "gc_coordinator_metrics",
             dissemination_round = dissemination_round,
             v_stable = format!("{:?}", v_stable),

@@ -193,6 +193,7 @@ where
             .collect::<Vec<_>>()
             .join(", ");
         metric!(event = "or_set_metrics",
+            node_id = dvv.dot.node_id.clone(),
             adds = num_adds,
             tombstones = num_tombstones,
             vector_clock = effective_map,
