@@ -3,30 +3,31 @@ pub mod client_requests_handler;
 pub mod peer_message_handler;
 pub mod initializer;
 
-use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use tracing::{info, error};
-use tokio::signal::unix::{signal, SignalKind};
 
+use crate::network::Network;
 use crate::server::types::{CrdtType, EngineType, OutboundTasks};
-use crate::network::connection;
 use crate::engine::crdt_engine::{CrdtEngineRequest};
 use crate::crdt::or_set::OrSet;
 use crate::discovery::{Discovery, DiscoveryConfig};
-use crate::network::dissemination::{PullPeriodic, SharedDissemination};
+use crate::network::dissemination::{PushPull, SharedDissemination};
 use crate::gc::GcConfig;
 use crate::peers::peer_registry::PeerRegistry;
 use crate::proto::Envelope;
 use crate::storage::s3_client::S3Client;
 
 // ── Server ──────────────────────────────────────────────────────────────
+#[derive(Clone)]
 pub struct ServerConfig {
     pub listen_host: String,
     pub listen_port: String,
     pub node_name: String,
     pub gc_replica: bool,
+    pub experiment: bool,
     pub client_port: Option<String>,
 }
 
@@ -34,18 +35,12 @@ pub struct Server {
     node_id: String,
     node_name: String,
     gc_replica: bool,
+    experiment: bool,
     listen_port: String,
     client_port: Option<String>,
     registry: PeerRegistry,
     discovery: Arc<Discovery>,
     outbound_tasks: Arc<Mutex<OutboundTasks>>,
-}
-
-async fn shutdown_signal() {
-    let mut sigterm = signal(SignalKind::terminate())
-        .expect("failed to install SIGTERM handler");
-
-    sigterm.recv().await;
 }
 
 impl Server {
@@ -77,6 +72,7 @@ impl Server {
             node_id,
             node_name: server_config.node_name.to_string(),
             gc_replica: server_config.gc_replica,
+            experiment: server_config.experiment,
             listen_port: server_config.listen_port,
             client_port: server_config.client_port,
             registry: PeerRegistry::new(),
@@ -85,13 +81,15 @@ impl Server {
         })
     }
 
-    pub async fn run(&self, gc_config: GcConfig) -> anyhow::Result<()> {
-        let (app_tx, mut app_rx) = mpsc::channel::<(SocketAddr, Envelope)>(1024);
+    pub async fn run(&self, gc_config: GcConfig,
+        app_tx: mpsc::Sender<Envelope>,
+        mut app_rx: mpsc::Receiver<Envelope>,
+        network: Arc<dyn Network>,
+        shutdown: CancellationToken
+    ) -> anyhow::Result<()> {
         let prefix = gc_config.storage_config.prefix.clone();
 
-        // ── Build dissemination strategy ─────────────────────────────
-        // Pull-only: peers periodically request deltas from each other.
-        let dissemination: SharedDissemination<CrdtType> = Arc::new(PullPeriodic::new(
+        let dissemination: SharedDissemination<CrdtType> = Box::new(PushPull::new(
             self.registry.clone(),
             std::time::Duration::from_secs(1),
         ));
@@ -100,19 +98,27 @@ impl Server {
 
         let (engine_tx, engine_rx) = tokio::sync::mpsc::channel::<CrdtEngineRequest<CrdtType>>(1024);
 
+        let mut handles = vec![];
+
+        if let Some(dissemination_handle) = dissemination.start_pull_loop(engine_tx.clone()) {
+            handles.push(dissemination_handle);
+        }
+
         // ── Build CRDT engine (OR-Set<String>) ───────────────────────
         let engine: EngineType = EngineType::new(
             self.node_id.clone(),
             "default-orset".to_string(),
             OrSet::new(),
             self.registry.clone(),
-            dissemination.clone(),
+            dissemination,
             (gc_storage_client, gc_config),
             engine_rx,
         );
 
-        let (handles, listener) = initializer::start_background_tasks(self, engine, engine_tx.clone(), dissemination.clone(), app_tx.clone())
+        let new_handles = initializer::start_background_tasks(self, engine, engine_tx.clone(), app_tx.clone(), network, self.registry.clone())
             .await?;
+
+        handles.extend(new_handles);
 
         let print_metrics_interval = std::time::Duration::from_secs(10);
         let mut metrics_interval = tokio::time::interval(print_metrics_interval);
@@ -120,27 +126,15 @@ impl Server {
         // Run Main Loop
         loop {
             tokio::select! {
-                accept_result = listener.accept() => {
-                    peer_message_handler::handle_accepted_connection(self.node_id.clone(),
-                    self.node_name.clone(), self.gc_replica, self.registry.clone(),
-                    app_tx.clone(), accept_result);
-                }
-                
-                Some((addr, envelope)) = app_rx.recv() => {
-                    peer_message_handler::handle_received_envelope(envelope, addr, engine_tx.clone()).await;
+                Some(envelope) = app_rx.recv() => {
+                    peer_message_handler::handle_received_envelope(self.node_id.clone(), envelope, engine_tx.clone()).await;
                 }
 
                 _ = metrics_interval.tick() => {
                     engine_tx.send(CrdtEngineRequest::LogCrdtMetrics).await?;
                 }
 
-                // TODO: also handle all other shutdown signals (SIGINT, SIGTERM, etc.)
-                // and do graceful shutdown.
-                _ = tokio::signal::ctrl_c() => {
-                    self.handle_shutdown(engine_tx.clone(), &handles, prefix).await?;
-                    return Ok(());
-                }
-                _ = shutdown_signal() => {
+                _ = shutdown.cancelled() => {
                     self.handle_shutdown(engine_tx.clone(), &handles, prefix).await?;
                     return Ok(());
                 }
@@ -168,9 +162,9 @@ impl Server {
         }
         
         let mut tasks = self.outbound_tasks.lock().await;
-        for (_, (addr, handle)) in tasks.drain() {
+        for (node_id, handle) in tasks.drain() {
             handle.abort();
-            info!(%addr, "aborted outbound task");
+            info!(%node_id, "aborted outbound task");
         }
 
         info!(node_id = %self.node_id, "shutdown complete");

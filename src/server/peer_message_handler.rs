@@ -1,47 +1,21 @@
-use std::net::SocketAddr;
-use tokio::sync::mpsc;
 use tracing::{error, info};
 
-use crate::server::connection;
+use prost::Message;
+
+use crate::common::NodeId;
+use crate::metric;
 use crate::proto::Envelope;
 use crate::proto::envelope::Payload;
 use crate::engine::crdt_engine::CrdtEngineRequest;
 use crate::server::types::{CrdtType};
-use crate::peers::peer_registry::PeerRegistry;
-
-pub fn handle_accepted_connection(
-    node_id: String,
-    node_name: String,
-    gc_replica: bool,
-    registry: PeerRegistry,
-    app_tx: mpsc::Sender<(SocketAddr, Envelope)>,
-    accept_result: std::io::Result<(tokio::net::TcpStream, SocketAddr)>,
-) {
-    match accept_result {
-        Ok((stream, remote_addr)) => {
-            info!(%remote_addr, "accepted inbound connection");
-            tokio::spawn(async move {
-                connection::handle_inbound(
-                    stream,
-                    remote_addr,
-                    &node_id,
-                    &node_name,
-                    gc_replica,
-                    &registry,
-                    &app_tx,
-                )
-                .await;
-            });
-        }
-        Err(e) => error!(%e, "accept failed"),
-    }
-}
 
 pub async fn handle_received_envelope(
+    node_id: NodeId,
     envelope: Envelope,
-    addr: SocketAddr,
     engine_tx: tokio::sync::mpsc::Sender<CrdtEngineRequest<CrdtType>>,
 ) {
+    let len = envelope.encoded_len();
+    metric!(node_id = node_id, event = "receive_envelope", size_bytes = len as u64);
     // Route CRDT operations to the engine.
     match envelope.payload {
         Some(Payload::CrdtOp(crdt_op)) => {
@@ -88,7 +62,7 @@ pub async fn handle_received_envelope(
             }
         }
         other => {
-            info!(%addr, ?other, "app received non-CRDT message");
+            info!(?other, "app received non-CRDT message");
         }
     }
 }

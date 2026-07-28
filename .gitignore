@@ -3,3 +3,8 @@
 Cargo.lock
 .DS_Store
 /logs/
+__pycache__/
+viz_output/
+graphs/
+old_scripts/
+uv.lock

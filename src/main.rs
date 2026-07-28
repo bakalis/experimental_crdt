@@ -10,12 +10,18 @@ mod storage;
 mod server;
 mod logging;
 
+use std::sync::Arc;
+use tokio::sync::mpsc;
+use tokio::task::JoinSet;
+use tokio_util::sync::CancellationToken;
 use clap::Parser;
 use core::option::Option;
 use std::time::Duration;
 use dotenvy::dotenv;
 use std::collections::HashSet;
 use crate::peers::discovery;
+use crate::proto::Envelope;
+use crate::network::tcp_connection::TcpNetwork;
 
 /// CRDT replication server with S3-based peer discovery.
 #[derive(Parser, Debug)]
@@ -127,6 +133,7 @@ async fn main() -> anyhow::Result<()> {
         listen_host: cli.listen_host,
         listen_port: cli.listen_port,
         gc_replica,
+        experiment: false, // experiment is false for main server binary
         node_name: node_name.clone(),
         client_port: cli.client_port,
     };
@@ -144,7 +151,22 @@ async fn main() -> anyhow::Result<()> {
             None
         },
     };
+    let shutdown = CancellationToken::new();
+    let mut join_set: JoinSet<()> = JoinSet::new();
 
+    let (app_tx, app_rx) = mpsc::channel::<Envelope>(1024);
     let server = server::Server::new(server_config, discovery_cfg).await?;
-    server.run(gc_config).await
+    let network = Arc::new(TcpNetwork);
+    let shutdown_clone = shutdown.clone();
+
+    join_set.spawn(async move {
+        if let Err(e) = server.run(gc_config, app_tx, app_rx, network, shutdown_clone).await {
+            eprintln!("server run failed: {:?}", e);
+        }
+    });
+    
+    common::wait_for_shutdown_signal().await;
+    common::shutdown_processes(shutdown, join_set).await
 }
+
+

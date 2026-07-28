@@ -47,6 +47,14 @@ enum Mode {
         #[arg(long, default_value_t = 1000000000)]
         key_space: u64,
     },
+    OneRequestPerServer {
+        #[arg(long)]
+        num_gc_servers: u64,
+        #[arg(long)]
+        num_normal_servers: u64,
+        #[arg(long, default_value_t = 1000000000)]
+        key_space: u64,
+    },
 }
 
 // ── Interactive helpers ──────────────────────────────────────────────────────
@@ -166,6 +174,42 @@ async fn run_bench(
     Ok(())
 }
 
+async fn run_one_request_per_server(
+    num_gc_servers: u64,
+    num_normal_servers: u64,
+    key_space: u64,
+) -> anyhow::Result<()> {
+    let mut rng = rand::thread_rng();
+    println!("Sending one request to each of {num_gc_servers} GC servers and {num_normal_servers} normal servers.");
+
+    for i in 1..num_gc_servers + 1 {
+        let lookup_addr = format!("gc-server-{}:9100", i);
+        println!("Looking up address for {lookup_addr}...");
+        let stream = TcpStream::connect(lookup_addr).await?;
+        let (read_half, mut write_half) = stream.into_split();
+        let mut net_reader = BufReader::new(read_half);
+        let key = format!("gc-key-{}", rng.gen_range(0..key_space));
+        let command = proto_client_command::Command::Add(key.clone());
+        send_command(&mut write_half, command).await?;
+        let resp = recv_response(&mut net_reader).await?;
+        println!("{}", String::from_utf8_lossy(&resp));
+    }
+
+    for i in 1..num_normal_servers + 1 {
+        let lookup_addr = format!("normal-server-{}:9100", i);
+        println!("Looking up address for {lookup_addr}...");
+        let stream = TcpStream::connect(lookup_addr).await?;
+        let (read_half, mut write_half) = stream.into_split();
+        let mut net_reader = BufReader::new(read_half);
+        let key = format!("normal-key-{}", rng.gen_range(0..key_space));
+        let command = proto_client_command::Command::Add(key.clone());
+        send_command(&mut write_half, command).await?;
+        let resp = recv_response(&mut net_reader).await?;
+        println!("{}", String::from_utf8_lossy(&resp));
+    }
+
+    Ok(())
+}
 // ── Entry point ──────────────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -177,6 +221,8 @@ async fn main() -> anyhow::Result<()> {
         Mode::Interactive => run_interactive(addr, &cli.addr).await?,
         Mode::Bench { requests, remove_chance, key_space, sleep_ms } =>
             run_bench(addr, requests, remove_chance, key_space, sleep_ms).await?,
+        Mode::OneRequestPerServer { num_gc_servers, num_normal_servers, key_space } =>
+            run_one_request_per_server(num_gc_servers, num_normal_servers, key_space).await?,
     }
     Ok(())
 }

@@ -1,0 +1,1311 @@
+Scanning for latest client_operation …
+  ➜  Global start : 2026-07-02T13:41:47.184506+00:00
+
+Discovering servers …
+  ➜  GC servers     : 5  (gc-server-1, gc-server-2, gc-server-3, gc-server-4, gc-server-5)
+  ➜  Normal servers : 45  (normal-server-1, normal-server-10, normal-server-11, normal-server-12, normal-server-13, normal-server-14, normal-server-15, normal-server-16, normal-server-17, normal-server-18, normal-server-19, normal-server-2, normal-server-20, normal-server-21, normal-server-22, normal-server-23, normal-server-24, normal-server-25, normal-server-26, normal-server-27, normal-server-28, normal-server-29, normal-server-3, normal-server-30, normal-server-31, normal-server-32, normal-server-33, normal-server-34, normal-server-35, normal-server-36, normal-server-37, normal-server-38, normal-server-39, normal-server-4, normal-server-40, normal-server-41, normal-server-42, normal-server-43, normal-server-44, normal-server-45, normal-server-5, normal-server-6, normal-server-7, normal-server-8, normal-server-9)
+
+Analysing GC replicas …
+  ➜  Earliest GC cutoff : 2026-07-02T13:42:07.330807+00:00
+  ➜  Latest GC cutoff   : 2026-07-02T13:42:11.224320+00:00
+
+Analysing Normal replicas …
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  GC SERVERS – individual results
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-1  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 1491
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Window end (own cutoff)        : 2026-07-02T13:42:08.476102382+00:00
+  Cutoff dissemination_round     : 119
+  Rounds in window               : 117  (first=2, last=119)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         623,984      663,845
+  Message count                           373          540
+  Avg bytes / message                1,672.88     1,229.34
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-2  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 1669
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Window end (own cutoff)        : 2026-07-02T13:42:10.408247674+00:00
+  Cutoff dissemination_round     : 112
+  Rounds in window               : 110  (first=2, last=112)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         721,968      685,921
+  Message count                           418          607
+  Avg bytes / message                1,727.20     1,130.02
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-3  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 1507
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Window end (own cutoff)        : 2026-07-02T13:42:07.330807506+00:00
+  Cutoff dissemination_round     : 124
+  Rounds in window               : 123  (first=1, last=124)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         657,351      622,837
+  Message count                           381          544
+  Avg bytes / message                1,725.33     1,144.92
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-4  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 1731
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Window end (own cutoff)        : 2026-07-02T13:42:10.090776133+00:00
+  Cutoff dissemination_round     : 110
+  Rounds in window               : 109  (first=1, last=110)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         808,345      700,723
+  Message count                           439          621
+  Avg bytes / message                1,841.33     1,128.38
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-5  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 1964
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Window end (own cutoff)        : 2026-07-02T13:42:11.224320258+00:00
+  Cutoff dissemination_round     : 114
+  Rounds in window               : 112  (first=2, last=114)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         843,648      873,034
+  Message count                           512          737
+  Avg bytes / message                1,647.75     1,184.58
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  NORMAL SERVERS – individual results
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-1  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 168
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          39,229       43,715
+  Message count                            53           34
+  Avg bytes / message                  740.17     1,285.74
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          43,645       45,919
+  Message count                            57           36
+  Avg bytes / message                  765.70     1,275.53
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-10  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 193
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          54,034       55,317
+  Message count                            67           45
+  Avg bytes / message                  806.48     1,229.27
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          58,454       56,419
+  Message count                            71           46
+  Avg bytes / message                  823.30     1,226.50
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-11  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 174
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          41,144       49,393
+  Message count                            58           39
+  Avg bytes / message                  709.38     1,266.49
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          45,564       51,597
+  Message count                            62           41
+  Avg bytes / message                  734.90     1,258.46
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-12  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 177
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          49,998       51,012
+  Message count                            60           39
+  Avg bytes / message                  833.30     1,308.00
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          54,418       52,114
+  Message count                            64           40
+  Avg bytes / message                  850.28     1,302.85
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-13  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 164
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          39,265       42,344
+  Message count                            54           32
+  Avg bytes / message                  727.13     1,323.25
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          43,685       44,548
+  Message count                            58           34
+  Avg bytes / message                  753.19     1,310.24
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-14  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 187
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          48,453       55,867
+  Message count                            62           46
+  Avg bytes / message                  781.50     1,214.50
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          52,873       59,173
+  Message count                            66           49
+  Avg bytes / message                  801.11     1,207.61
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-15  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 194
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          55,427       58,184
+  Message count                            69           48
+  Avg bytes / message                  803.29     1,212.17
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          59,847       58,184
+  Message count                            73           48
+  Avg bytes / message                  819.82     1,212.17
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-16  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 160
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          38,549       43,745
+  Message count                            50           32
+  Avg bytes / message                  770.98     1,367.03
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          42,969       43,745
+  Message count                            54           32
+  Avg bytes / message                  795.72     1,367.03
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-17  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 145
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          38,415       34,411
+  Message count                            45           24
+  Avg bytes / message                  853.67     1,433.79
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          42,835       34,411
+  Message count                            49           24
+  Avg bytes / message                  874.18     1,433.79
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-18  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 172
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          38,958       46,081
+  Message count                            56           37
+  Avg bytes / message                  695.68     1,245.43
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          43,378       47,183
+  Message count                            60           38
+  Avg bytes / message                  722.97     1,241.66
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-19  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 203
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          50,317       58,636
+  Message count                            68           50
+  Avg bytes / message                  739.96     1,172.72
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          54,737       58,636
+  Message count                            72           50
+  Avg bytes / message                  760.24     1,172.72
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-2  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 205
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          54,432       64,588
+  Message count                            72           54
+  Avg bytes / message                  756.00     1,196.07
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          58,848       66,792
+  Message count                            76           56
+  Avg bytes / message                  774.32     1,192.71
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-20  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 219
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          67,322       73,919
+  Message count                            79           59
+  Avg bytes / message                  852.18     1,252.86
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          71,742       73,919
+  Message count                            83           59
+  Avg bytes / message                  864.36     1,252.86
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-21  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 176
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          41,744       47,572
+  Message count                            60           41
+  Avg bytes / message                  695.73     1,160.29
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          46,164       47,572
+  Message count                            64           41
+  Avg bytes / message                  721.31     1,160.29
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-22  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 191
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          52,107       61,577
+  Message count                            67           49
+  Avg bytes / message                  777.72     1,256.67
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          56,527       62,679
+  Message count                            71           50
+  Avg bytes / message                  796.15     1,253.58
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-23  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 170
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          40,725       51,019
+  Message count                            54           40
+  Avg bytes / message                  754.17     1,275.47
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          45,145       52,121
+  Message count                            58           41
+  Avg bytes / message                  778.36     1,271.24
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-24  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 180
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          45,679       48,480
+  Message count                            62           44
+  Avg bytes / message                  736.76     1,101.82
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          50,099       48,480
+  Message count                            66           44
+  Avg bytes / message                  759.08     1,101.82
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-25  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 191
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          58,175       58,629
+  Message count                            65           44
+  Avg bytes / message                  895.00     1,332.48
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          62,595       58,629
+  Message count                            69           44
+  Avg bytes / message                  907.17     1,332.48
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-26  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 185
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          47,451       54,463
+  Message count                            63           45
+  Avg bytes / message                  753.19     1,210.29
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          51,871       56,667
+  Message count                            67           47
+  Avg bytes / message                  774.19     1,205.68
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-27  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 143
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          37,272       33,841
+  Message count                            44           25
+  Avg bytes / message                  847.09     1,353.64
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          41,692       33,841
+  Message count                            48           25
+  Avg bytes / message                  868.58     1,353.64
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-28  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 175
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          39,002       43,866
+  Message count                            54           36
+  Avg bytes / message                  722.26     1,218.50
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          43,422       44,968
+  Message count                            58           37
+  Avg bytes / message                  748.66     1,215.35
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-29  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 168
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          44,477       46,745
+  Message count                            56           37
+  Avg bytes / message                  794.23     1,263.38
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          48,897       50,051
+  Message count                            60           40
+  Avg bytes / message                  814.95     1,251.28
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-3  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 174
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          41,678       50,188
+  Message count                            56           40
+  Avg bytes / message                  744.25     1,254.70
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          46,094       50,188
+  Message count                            60           40
+  Avg bytes / message                  768.23     1,254.70
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-30  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 191
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          57,815       60,415
+  Message count                            65           47
+  Avg bytes / message                  889.46     1,285.43
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          62,235       61,517
+  Message count                            69           48
+  Avg bytes / message                  901.96     1,281.60
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-31  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 139
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          32,915       29,885
+  Message count                            41           19
+  Avg bytes / message                  802.80     1,572.89
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          37,335       29,885
+  Message count                            45           19
+  Avg bytes / message                  829.67     1,572.89
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-32  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 171
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          43,543       43,603
+  Message count                            56           36
+  Avg bytes / message                  777.55     1,211.19
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          47,963       43,603
+  Message count                            60           36
+  Avg bytes / message                  799.38     1,211.19
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-33  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 173
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          41,014       48,461
+  Message count                            57           38
+  Avg bytes / message                  719.54     1,275.29
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          45,434       51,767
+  Message count                            61           41
+  Avg bytes / message                  744.82     1,262.61
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-34  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 160
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          39,359       38,387
+  Message count                            49           29
+  Avg bytes / message                  803.24     1,323.69
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          43,779       41,693
+  Message count                            53           32
+  Avg bytes / message                  826.02     1,302.91
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-35  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 174
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          49,164       47,378
+  Message count                            57           35
+  Avg bytes / message                  862.53     1,353.66
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          53,584       50,684
+  Message count                            61           38
+  Avg bytes / message                  878.43     1,333.79
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-36  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 166
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          39,483       43,982
+  Message count                            52           34
+  Avg bytes / message                  759.29     1,293.59
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          43,903       43,982
+  Message count                            56           34
+  Avg bytes / message                  783.98     1,293.59
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-37  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 167
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          42,552       44,229
+  Message count                            54           35
+  Avg bytes / message                  788.00     1,263.69
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          46,972       44,229
+  Message count                            58           35
+  Avg bytes / message                  809.86     1,263.69
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-38  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 156
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          35,989       40,159
+  Message count                            47           31
+  Avg bytes / message                  765.72     1,295.45
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          40,409       40,159
+  Message count                            51           31
+  Avg bytes / message                  792.33     1,295.45
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-39  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 177
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          45,241       49,025
+  Message count                            57           39
+  Avg bytes / message                  793.70     1,257.05
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          49,661       51,229
+  Message count                            61           41
+  Avg bytes / message                  814.11     1,249.49
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-4  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 166
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          43,073       46,196
+  Message count                            55           36
+  Avg bytes / message                  783.15     1,283.22
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          47,489       47,298
+  Message count                            59           37
+  Avg bytes / message                  804.90     1,278.32
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-40  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 212
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          63,567       71,392
+  Message count                            77           60
+  Avg bytes / message                  825.55     1,189.87
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          67,987       71,392
+  Message count                            81           60
+  Avg bytes / message                  839.35     1,189.87
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-41  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 158
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          36,760       38,701
+  Message count                            49           29
+  Avg bytes / message                  750.20     1,334.52
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          41,180       40,905
+  Message count                            53           31
+  Avg bytes / message                  776.98     1,319.52
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-42  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 200
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          51,705       58,987
+  Message count                            69           50
+  Avg bytes / message                  749.35     1,179.74
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          56,125       61,191
+  Message count                            73           52
+  Avg bytes / message                  768.84     1,176.75
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-43  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 144
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          33,157       33,590
+  Message count                            42           23
+  Avg bytes / message                  789.45     1,460.43
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          37,577       35,794
+  Message count                            46           25
+  Avg bytes / message                  816.89     1,431.76
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-44  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 163
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          41,662       45,105
+  Message count                            51           34
+  Avg bytes / message                  816.90     1,326.62
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          46,082       45,105
+  Message count                            55           34
+  Avg bytes / message                  837.85     1,326.62
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-45  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 201
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          58,951       62,860
+  Message count                            73           51
+  Avg bytes / message                  807.55     1,232.55
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          63,371       62,860
+  Message count                            77           51
+  Avg bytes / message                  823.00     1,232.55
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-5  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 205
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          57,738       63,728
+  Message count                            72           53
+  Avg bytes / message                  801.92     1,202.42
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          62,154       63,728
+  Message count                            76           53
+  Avg bytes / message                  817.82     1,202.42
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-6  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 152
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          37,484       38,866
+  Message count                            46           27
+  Avg bytes / message                  814.87     1,439.48
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          41,900       38,866
+  Message count                            50           27
+  Avg bytes / message                  838.00     1,439.48
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-7  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 182
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          43,665       45,121
+  Message count                            57           37
+  Avg bytes / message                  766.05     1,219.49
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          48,081       47,325
+  Message count                            61           39
+  Avg bytes / message                  788.21     1,213.46
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-8  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 172
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          41,127       45,827
+  Message count                            58           37
+  Avg bytes / message                  709.09     1,238.57
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          45,543       48,031
+  Message count                            62           39
+  Avg bytes / message                  734.56     1,231.56
+
+
+──────────────────────────────────────────────────────────────
+  Server : normal-server-9  [NORMAL]
+──────────────────────────────────────────────────────────────
+  Lines processed (in windows)   : 189
+  Window start                   : 2026-07-02T13:41:47.184506+00:00
+  Earliest GC cutoff             : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff               : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          45,795       48,369
+  Message count                            64           43
+  Avg bytes / message                  715.55     1,124.86
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                          50,211       49,471
+  Message count                            68           44
+  Avg bytes / message                  738.40     1,124.34
+
+
+══════════════════════════════════════════════════════════════
+  SUMMARY – GC SERVERS
+══════════════════════════════════════════════════════════════
+  Servers : gc-server-1, gc-server-2, gc-server-3, gc-server-4, gc-server-5
+
+  Cutoff dissemination round     : avg=115.8
+  Earliest dissemination round   : 110  (gc-server-4)
+  Latest dissemination round     : 124  (gc-server-3)
+  Earliest cutoff                : gc-server-3  @  2026-07-02T13:42:07.330807+00:00
+  Latest cutoff                  : gc-server-5  @  2026-07-02T13:42:11.224320+00:00
+
+  Rounds in window (per server)  : avg=114.2, total=571
+  First round in window          : 1  (gc-server-3) – 2  (gc-server-1)
+  Last round in window           : 110  (gc-server-4) – 124  (gc-server-3)
+
+  Bytes (start → each server's own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       3,655,296    3,546,360
+  Message count                         2,123        3,049
+  Avg bytes / message                1,721.76     1,163.12
+  Avg total bytes / server         731,059.20   709,272.00
+
+
+══════════════════════════════════════════════════════════════
+  SUMMARY – NORMAL SERVERS
+══════════════════════════════════════════════════════════════
+  Servers : normal-server-1, normal-server-10, normal-server-11, normal-server-12, normal-server-13, normal-server-14, normal-server-15, normal-server-16, normal-server-17, normal-server-18, normal-server-19, normal-server-2, normal-server-20, normal-server-21, normal-server-22, normal-server-23, normal-server-24, normal-server-25, normal-server-26, normal-server-27, normal-server-28, normal-server-29, normal-server-3, normal-server-30, normal-server-31, normal-server-32, normal-server-33, normal-server-34, normal-server-35, normal-server-36, normal-server-37, normal-server-38, normal-server-39, normal-server-4, normal-server-40, normal-server-41, normal-server-42, normal-server-43, normal-server-44, normal-server-45, normal-server-5, normal-server-6, normal-server-7, normal-server-8, normal-server-9
+  Earliest GC cutoff              : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff                : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       2,045,612    2,217,858
+  Message count                         2,622        1,763
+  Avg bytes / message                  780.17     1,258.00
+  Avg total bytes / server          45,458.04    49,285.73
+
+  Bytes (start → latest cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       2,244,476    2,268,550
+  Message count                         2,802        1,809
+  Avg bytes / message                  801.03     1,254.04
+  Avg total bytes / server          49,877.24    50,412.22
+
+
+══════════════════════════════════════════════════════════════
+  FINAL TOTAL – GC + NORMAL COMBINED
+══════════════════════════════════════════════════════════════
+  Servers : 5 GC + 45 Normal = 50
+  Earliest GC cutoff              : 2026-07-02T13:42:07.330807+00:00
+  Latest GC cutoff                : 2026-07-02T13:42:11.224320+00:00
+
+  Bytes (start → earliest cutoff), GC + Normal:
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       5,454,738    5,453,762
+  Message count                         4,691        4,691
+  Avg bytes / message                1,162.81     1,162.60
+  Avg total bytes / server         109,094.76   109,075.24
+
+  Bytes (start → latest cutoff), GC + Normal:
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       6,010,322    6,010,448
+  Message count                         4,954        4,955
+  Avg bytes / message                1,213.23     1,213.01
+  Avg total bytes / server         120,206.44   120,208.96
+
