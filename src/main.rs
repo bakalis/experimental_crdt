@@ -133,6 +133,7 @@ async fn main() -> anyhow::Result<()> {
         listen_host: cli.listen_host,
         listen_port: cli.listen_port,
         gc_replica,
+        experiment: false, // experiment is false for main server binary
         node_name: node_name.clone(),
         client_port: cli.client_port,
     };

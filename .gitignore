@@ -5,4 +5,6 @@ Cargo.lock
 /logs/
 __pycache__/
 viz_output/
+graphs/
+old_scripts/
 uv.lock

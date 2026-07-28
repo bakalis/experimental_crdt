@@ -123,7 +123,6 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
                     }
                 }
                 CrdtEngineRequest::LogCrdtMetrics => {
-                    // self.gc.log_metrics().await;
                     self.crdt.log_metrics(&self.dvv, self.gc.epoch);
                 }
             }
@@ -302,7 +301,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
             .map(|(gc_replica, _)| gc_replica)
             .unwrap_or(false)
         {
-            self.gc.get_knowledge_matrix().await
+            self.gc.get_knowledge_matrix(&self.node_id).await
         } else {
             None
         };

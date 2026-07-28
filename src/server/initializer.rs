@@ -42,8 +42,10 @@ pub async fn start_background_tasks(
     handles.push(tokio::spawn(async move {
         engine.run().await;
     }));
-
-    engine_tx.send(CrdtEngineRequest::ClientOperation(OrSetOp::Add(format!("test-{}", &server.node_id)))).await?;
+    if server.experiment {
+        // In experiment mode, we add a test value to the OR-Set to simulate client operations
+        engine_tx.send(CrdtEngineRequest::ClientOperation(OrSetOp::Add(format!("test-{}", &server.node_id)))).await?;
+    }
     Ok(handles) 
 }
 

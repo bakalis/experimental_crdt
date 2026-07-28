@@ -29,7 +29,7 @@ use clap::Parser;
 use core::option::Option;
 use std::time::Duration;
 use dotenvy::dotenv;
-use std::collections::HashMap;
+use std::collections::{HashSet, HashMap};
 
 use crate::common::NodeId;
 use crate::network::simulated::SimulatedNetwork;
@@ -80,10 +80,10 @@ struct Cli {
     registration_ttl_secs: u64,
 
     #[arg(long, default_value = "1")]
-    num_gc_replicas: u16,
+    num_gc_replicas: usize,
 
     #[arg(long, default_value = "1")]
-    num_normal_replicas: u16,
+    num_normal_replicas: usize,
     
     /// Prefix under the configured S3 bucket for GC protocol objects.
     #[arg(long, default_value = "gc")]
@@ -114,6 +114,8 @@ struct ConfigCliInfo {
     listen_host: String,
     gc_observe_interval_secs: u64,
     gc_initiate_interval_secs: u64,
+    num_gc_replicas: usize,
+    num_normal_replicas: usize,
 }
 
 #[tokio::main]
@@ -125,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
     let num_normal_replicas = cli.num_normal_replicas;
 
     let mut channels_map: HashMap<String, (NodeId, bool, mpsc::Sender<Envelope>)> = HashMap::new();
-    let mut replicas: Vec<(String, NodeId, u16, bool, mpsc::Receiver<Envelope>)> = vec![];
+    let mut replicas: Vec<(String, NodeId, usize, bool, mpsc::Receiver<Envelope>)> = vec![];
 
     for r in 1..num_gc_replicas + 1 {
         let gc_port = 8000 + r;
@@ -159,7 +161,9 @@ async fn main() -> anyhow::Result<()> {
         gc_prefix: cli.gc_prefix.clone(),
         listen_host: cli.listen_host.clone(),
         gc_observe_interval_secs: cli.gc_observe_interval_secs,
-        gc_initiate_interval_secs: cli.gc_initiate_interval_secs};
+        gc_initiate_interval_secs: cli.gc_initiate_interval_secs,
+        num_gc_replicas: cli.num_gc_replicas,
+        num_normal_replicas: cli.num_normal_replicas};
     for (node_addr, node_name, node_port, gc_replica, app_rx) in replicas {
         let app_tx = channels_map.get(&node_addr).unwrap().2.clone();
         let config_info_clone = config_info.clone();
@@ -180,13 +184,27 @@ async fn main() -> anyhow::Result<()> {
 async fn init_and_run_server(
     config_info: ConfigCliInfo,
     node_name: String,
-    listen_port: u16,
+    listen_port: usize,
     gc_replica: bool,
     app_mpsc: (mpsc::Sender<Envelope>, mpsc::Receiver<Envelope>),
     network: Arc<SimulatedNetwork>,
     shutdown: CancellationToken
 ) -> anyhow::Result<()> {
     let (app_tx, app_rx) = app_mpsc;
+
+    let connect_node_ids = if config_info.num_normal_replicas == 0 { None }
+    else {
+        Some(compute_connect_node_ids(&node_name,
+            gc_replica,
+            config_info.num_gc_replicas,
+            config_info.num_normal_replicas)
+        )
+    };
+    let connect_node_ids_str: String = match &connect_node_ids {
+        Some(ids) => ids.iter().cloned().collect::<Vec<_>>().join(","),
+        Option::None => String::new(),
+    };
+    metric!(event = "network_topology", node_id = node_name.clone(), gc_replica = gc_replica, connect_node_ids = connect_node_ids_str);
 
     let discovery_cfg = discovery::DiscoveryConfig {
         endpoint: config_info.endpoint,
@@ -197,13 +215,14 @@ async fn init_and_run_server(
         poll_interval: Duration::from_secs(config_info.discovery_interval_secs),
         registration_ttl: Duration::from_secs(config_info.registration_ttl_secs),
         gc_replica,
-        connect_node_ids: None,
+        connect_node_ids,
     };
 
     let server_config = server::ServerConfig {
         listen_host: config_info.listen_host,
         listen_port: listen_port.to_string(),
         gc_replica,
+        experiment: true,
         node_name,
         client_port: None
     };
@@ -226,4 +245,41 @@ async fn init_and_run_server(
 
     let server = server::Server::new(server_config, discovery_cfg).await?;
     server.run(gc_config, app_tx, app_rx, network, shutdown).await
+}
+
+fn compute_connect_node_ids(
+    node_name: &str,
+    gc_replica: bool,
+    gc_count: usize,
+    normal_count: usize
+) -> HashSet<String> {
+    if gc_replica {
+        // Parse index from "gc-server-{i}"
+        let idx: usize = node_name
+            .strip_prefix("gc-server-")
+            .and_then(|s| s.parse().ok())
+            .expect("GC node name must be gc-server-{i}");
+
+        // All other GC nodes
+        let gc_peers = (1..=gc_count)
+            .filter(|&j| j != idx)
+            .map(|j| format!("gc-server-{j}"));
+
+        // Normal nodes assigned to this GC node (round-robin: normal i → gc (i-1) % gc_count + 1)
+        let normal_peers = (1..=normal_count)
+            .filter(|&i| (i - 1) % gc_count + 1 == idx)
+            .map(|i| format!("normal-server-{i}"));
+
+        gc_peers.chain(normal_peers).collect()
+    } else {
+        // Parse index from "normal-server-{i}"
+        let idx: usize = node_name
+            .strip_prefix("normal-server-")
+            .and_then(|s| s.parse().ok())
+            .expect("Normal node name must be normal-server-{i}");
+
+        // Exactly one GC node, round-robin
+        let gc_idx = (idx - 1) % gc_count + 1;
+        std::iter::once(format!("gc-server-{gc_idx}")).collect()
+    }
 }

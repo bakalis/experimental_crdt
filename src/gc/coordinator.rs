@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use std::time::Duration;
+use std::collections::hash_map::Entry;
 
 use crate::metric;
 use crate::common::{Counter, NodeId};
@@ -79,7 +80,7 @@ impl<S: GcStorage> GcCoordinator<S> {
         self.config.observe_interval
     }
 
-    pub async fn log_metrics(&self, dissemination_round: u64, node_id: &NodeId, dvv: &DotVersionVector) -> anyhow::Result<()> {
+    pub async fn log_metrics(&self, dissemination_round: usize, node_id: &NodeId, dvv: &DotVersionVector) -> anyhow::Result<()> {
         if !self.config.gc_replica {
             return Ok(());
         }
@@ -90,7 +91,7 @@ impl<S: GcStorage> GcCoordinator<S> {
                 .map(|(node, ctx)| {
                     node.len() + ctx.keys().map(|n| n.len() + 8).sum::<usize>()
                 })
-                .sum::<usize>() as u64;
+                .sum::<usize>();
 
             let m1 = self.membership.live_members().await?;
             let final_dots = self.storage.read_final_dots().await?;
@@ -111,7 +112,7 @@ impl<S: GcStorage> GcCoordinator<S> {
         Ok(())
     }
 
-    pub async fn get_knowledge_matrix(&self) -> Option<MatrixClock> {
+    pub async fn get_knowledge_matrix(&self, node_id: &NodeId) -> Option<MatrixClock> {
         if !self.config.gc_replica {
             return None;
         }
@@ -124,6 +125,11 @@ impl<S: GcStorage> GcCoordinator<S> {
                     .insert(node.clone(), matrix_clock.get(node)?.clone());
             }
         }
+        metric!(
+            node_id = node_id,
+            event = "knowledge_matrix",
+            knowledge_matrix = format!("{:?}", knowledge_matrix.keys().cloned().collect::<Vec<_>>().join(","))
+        );
         Some(knowledge_matrix)
     }
 
@@ -140,8 +146,16 @@ impl<S: GcStorage> GcCoordinator<S> {
             return;
         }
         let mut matrix_clock = self.matrix_clock.as_mut().unwrap().write().await;
-        for (node, context) in knowledge_matrix {
-            matrix_clock.insert(node.clone(), context.clone());
+        for (node, incoming_context) in knowledge_matrix {
+            match matrix_clock.entry(node.clone()) {
+                Entry::Occupied(mut entry) => {
+                    let joined = dot_version_vector::vv_join(incoming_context, entry.get());
+                    entry.insert(joined);
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(incoming_context.clone());
+                }
+            }
         }
     }
 

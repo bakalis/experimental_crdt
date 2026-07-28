@@ -14,7 +14,7 @@ use crate::server::types::{CrdtType, EngineType, OutboundTasks};
 use crate::engine::crdt_engine::{CrdtEngineRequest};
 use crate::crdt::or_set::OrSet;
 use crate::discovery::{Discovery, DiscoveryConfig};
-use crate::network::dissemination::{PullPeriodic, SharedDissemination};
+use crate::network::dissemination::{PushPull, SharedDissemination};
 use crate::gc::GcConfig;
 use crate::peers::peer_registry::PeerRegistry;
 use crate::proto::Envelope;
@@ -27,6 +27,7 @@ pub struct ServerConfig {
     pub listen_port: String,
     pub node_name: String,
     pub gc_replica: bool,
+    pub experiment: bool,
     pub client_port: Option<String>,
 }
 
@@ -34,6 +35,7 @@ pub struct Server {
     node_id: String,
     node_name: String,
     gc_replica: bool,
+    experiment: bool,
     listen_port: String,
     client_port: Option<String>,
     registry: PeerRegistry,
@@ -70,6 +72,7 @@ impl Server {
             node_id,
             node_name: server_config.node_name.to_string(),
             gc_replica: server_config.gc_replica,
+            experiment: server_config.experiment,
             listen_port: server_config.listen_port,
             client_port: server_config.client_port,
             registry: PeerRegistry::new(),
@@ -86,9 +89,7 @@ impl Server {
     ) -> anyhow::Result<()> {
         let prefix = gc_config.storage_config.prefix.clone();
 
-        // ── Build dissemination strategy ─────────────────────────────
-        // Pull-only: peers periodically request deltas from each other.
-        let dissemination: SharedDissemination<CrdtType> = Box::new(PullPeriodic::new(
+        let dissemination: SharedDissemination<CrdtType> = Box::new(PushPull::new(
             self.registry.clone(),
             std::time::Duration::from_secs(1),
         ));

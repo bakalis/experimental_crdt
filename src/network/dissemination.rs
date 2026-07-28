@@ -28,7 +28,7 @@ pub trait DisseminationStrategy<C: DeltaCrdt>: Send + Sync + 'static {
     /// Receivers respond with a delta if they are ahead or concurrent.
     /// Pull-only strategies no-op here.
     async fn push_version_vector(
-        &self,
+        &mut self,
         origin_node_id: &NodeId,
         crdt_id: &str,
         gc_replica: bool,
@@ -40,7 +40,7 @@ pub trait DisseminationStrategy<C: DeltaCrdt>: Send + Sync + 'static {
     /// peers can react; pull-only strategies no-op (the periodic round covers
     /// anti-entropy).
     async fn on_post_merge(
-        &self,
+        &mut self,
         _origin_node_id: &NodeId,
         _crdt_id: &str,
         _gc_replica: bool,
@@ -57,7 +57,7 @@ pub trait DisseminationStrategy<C: DeltaCrdt>: Send + Sync + 'static {
     ///   into `CrdtOp.requester_knowledge` when both are present; pull-only
     ///   strategies ignore it (the periodic round handles anti-entropy).
     fn respond_to_pull_request(
-        &self,
+        &mut self,
         _from_node: &NodeId,
         _crdt_id: &str,
         _origin_node_id: &NodeId,
@@ -88,9 +88,7 @@ pub trait DisseminationStrategy<C: DeltaCrdt>: Send + Sync + 'static {
         None
     }
 
-    fn get_dissemination_round(&self) -> u64 {
-        0
-    }
+    fn get_dissemination_round(&self) -> usize;
 }
 
 pub type SharedDissemination<C> = Box<dyn DisseminationStrategy<C>>;
@@ -145,46 +143,49 @@ fn make_pull_request_envelope(
 
 /// Eagerly pushes every delta to all connected peers.
 /// Pull is not used; `start_pull_loop` returns a no-op task.
-pub struct PushBroadcast {
+pub struct PushDissemination {
+    dissemination_round: usize,
     peer_registry: PeerRegistry,
 }
 
-impl PushBroadcast {
+impl PushDissemination {
     pub fn new(peer_registry: PeerRegistry) -> Self {
-        Self { peer_registry }
+        Self { dissemination_round: 0, peer_registry }
     }
 }
 
 #[async_trait]
-impl <C: DeltaCrdt> DisseminationStrategy<C> for PushBroadcast {
+impl <C: DeltaCrdt> DisseminationStrategy<C> for PushDissemination {
     async fn push_version_vector(
-        &self,
+        &mut self,
         origin_node_id: &NodeId,
         crdt_id: &str,
         gc_replica: bool,
         knowledge: &HashMap<NodeId, u64>,
     ) {
         let envelope = make_pull_request_envelope(crdt_id, origin_node_id, gc_replica, knowledge);
-        info!(
-            crdt_id,
-            peers = self.peer_registry.len(),
-            "push-broadcast: advertising version vector"
-        );
-        self.peer_registry.broadcast(envelope);
+        if let Some(random_peer_id) = self
+            .peer_registry
+            .peer_ids()
+            .choose(&mut rand::thread_rng())
+        {
+            self.dissemination_round += 1;
+            let _ = self.peer_registry.send_to_peer(random_peer_id, envelope);
+        }
     }
 
     async fn on_post_merge(
-        &self,
+        &mut self,
         origin_node_id: &NodeId,
         crdt_id: &str,
         gc_replica: bool,
         knowledge: &HashMap<NodeId, u64>,
     ) {
-        <PushBroadcast as DisseminationStrategy<C>>::push_version_vector::<'_, '_, '_, '_, '_>(self, origin_node_id, crdt_id, gc_replica, knowledge).await;
+        <PushDissemination as DisseminationStrategy<C>>::push_version_vector::<'_, '_, '_, '_, '_>(self, origin_node_id, crdt_id, gc_replica, knowledge).await;
     }
 
     fn respond_to_pull_request(
-        &self,
+        &mut self,
         from_node: &NodeId,
         crdt_id: &str,
         origin_node_id: &NodeId,
@@ -197,6 +198,7 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PushBroadcast {
             (Some(payload), Some(knowledge)) => {
                 // Piggyback the VV request on the delta to save a round-trip.
                 debug!(%from_node, crdt_id, "push-broadcast: sending delta with piggybacked VV request");
+                self.dissemination_round += 1;
                 make_crdt_op_envelope(
                     crdt_id,
                     origin_node_id,
@@ -211,6 +213,7 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PushBroadcast {
             }
             (Option::None, Some(knowledge)) => {
                 debug!(%from_node, crdt_id, "push-broadcast: sending VV request");
+                self.dissemination_round += 1;
                 make_pull_request_envelope(crdt_id, origin_node_id, gc_replica, &knowledge)
             }
             (Option::None, Option::None) => return,
@@ -220,6 +223,9 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PushBroadcast {
         }
     }
 
+    fn get_dissemination_round(&self) -> usize {
+        self.dissemination_round
+    }
     // start_pull_loop defaults to no-op.
 }
 
@@ -231,7 +237,7 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PushBroadcast {
 /// Pull requests are sent as `CrdtPullRequest` messages with the serialised
 /// knowledge map as the payload.
 pub struct PullPeriodic {
-    dissemination_round: u64,
+    dissemination_round: usize,
     peer_registry: PeerRegistry,
     interval: Duration,
 }
@@ -249,7 +255,7 @@ impl PullPeriodic {
 #[async_trait]
 impl <C: DeltaCrdt> DisseminationStrategy<C> for PullPeriodic {
     async fn push_version_vector(
-        &self,
+        &mut self,
         _origin_node_id: &NodeId,
         _crdt_id: &str,
         _gc_replica: bool,
@@ -262,7 +268,7 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PullPeriodic {
     // on_post_merge: default no-op — the periodic pull round covers anti-entropy.
 
     fn respond_to_pull_request(
-        &self,
+        &mut self,
         from_node: &NodeId,
         crdt_id: &str,
         origin_node_id: &NodeId,
@@ -301,7 +307,7 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PullPeriodic {
         }
     }
     
-    fn get_dissemination_round(&self) -> u64 {
+    fn get_dissemination_round(&self) -> usize {
         self.dissemination_round
     }
 
@@ -327,6 +333,7 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PullPeriodic {
 /// for anti-entropy. Most robust: push gives low latency, pull repairs lost
 /// messages.
 pub struct PushPull {
+    dissemination_round: usize,
     peer_registry: PeerRegistry,
     interval: Duration,
 }
@@ -334,6 +341,7 @@ pub struct PushPull {
 impl PushPull {
     pub fn new(peer_registry: PeerRegistry, interval: Duration) -> Self {
         Self {
+            dissemination_round: 0,
             peer_registry,
             interval,
         }
@@ -343,23 +351,25 @@ impl PushPull {
 #[async_trait]
 impl <C: DeltaCrdt> DisseminationStrategy<C> for PushPull {
     async fn push_version_vector(
-        &self,
+        &mut self,
         origin_node_id: &NodeId,
         crdt_id: &str,
         gc_replica: bool,
         knowledge: &HashMap<NodeId, u64>,
     ) {
         let envelope = make_pull_request_envelope(crdt_id, origin_node_id, gc_replica, knowledge);
-        debug!(
-            crdt_id,
-            peers = self.peer_registry.len(),
-            "push-pull: advertising version vector"
-        );
-        self.peer_registry.broadcast(envelope);
+        if let Some(random_peer_id) = self
+            .peer_registry
+            .peer_ids()
+            .choose(&mut rand::thread_rng())
+        {
+            self.dissemination_round += 1;
+            let _ = self.peer_registry.send_to_peer(random_peer_id, envelope);
+        }
     }
 
     async fn on_post_merge(
-        &self,
+        &mut self,
         origin_node_id: &NodeId,
         crdt_id: &str,
         gc_replica: bool,
@@ -369,7 +379,7 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PushPull {
     }
 
     fn respond_to_pull_request(
-        &self,
+        &mut self,
         from_node: &NodeId,
         crdt_id: &str,
         origin_node_id: &NodeId,
@@ -382,6 +392,7 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PushPull {
             (Some(payload), Some(knowledge)) => {
                 // Piggyback the VV request on the delta to save a round-trip.
                 debug!(%from_node, crdt_id, "push-pull: sending delta with piggybacked VV request");
+                self.dissemination_round += 1;
                 make_crdt_op_envelope(
                     crdt_id,
                     origin_node_id,
@@ -396,6 +407,7 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PushPull {
             }
             (None, Some(knowledge)) => {
                 debug!(%from_node, crdt_id, "push-pull: sending VV request");
+                self.dissemination_round += 1;
                 make_pull_request_envelope(crdt_id, origin_node_id, gc_replica, &knowledge)
             }
             (None, None) => return,
@@ -413,12 +425,18 @@ impl <C: DeltaCrdt> DisseminationStrategy<C> for PushPull {
         knowledge: &HashMap<NodeId, u64>,
     ) {
         let envelope = make_pull_request_envelope(crdt_id, node_id, gc_replica, knowledge);
-        debug!(
-            crdt_id,
-            peers = self.peer_registry.len(),
-            "push-pull: broadcasting pull request"
-        );
-        self.peer_registry.broadcast(envelope);
+        if let Some(random_peer_id) = self
+            .peer_registry
+            .peer_ids()
+            .choose(&mut rand::thread_rng())
+        {
+            self.dissemination_round += 1;
+            let _ = self.peer_registry.send_to_peer(random_peer_id, envelope);
+        }
+    }
+
+    fn get_dissemination_round(&self) -> usize {
+        self.dissemination_round
     }
 
     fn start_pull_loop(&self, engine_tx: tokio::sync::mpsc::Sender<CrdtEngineRequest<C>>) -> Option<JoinHandle<()>> {

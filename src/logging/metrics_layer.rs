@@ -49,6 +49,19 @@ impl<S: Subscriber> Layer<S> for MetricsLayer {
             "fields": visitor.fields,
         });
 
+        if !matches!(
+            visitor.fields.get("event").and_then(|v| v.as_str()),
+            Some("gc_coordinator_metrics")
+                | Some("client_operation")
+                | Some("knowledge_matrix")
+                | Some("network_topology")
+                | Some("or_set_metrics")
+                | Some("send_envelope")
+                | Some("receive_envelope")
+        ) {
+            return;
+        }
+
         if let Ok(mut file) = self.file.lock() {
             writeln!(file, "{}", entry).ok();
         }
