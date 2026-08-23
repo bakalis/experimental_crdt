@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Scan a directory for files matching {overlay|fullmesh}_{128|50}.txt
+Scan a directory for files matching {overlay|fullmesh}_{128|64|32}.txt
 (report output produced by analyze_metrics.py), parse the summary
 sections of each report, and write a single combined CSV with one
 row per file.
@@ -19,7 +19,7 @@ import re
 import sys
 from pathlib import Path
 
-FILENAME_RE = re.compile(r"^(overlay|fullmesh)_(128|50)\.txt$", re.IGNORECASE)
+FILENAME_RE = re.compile(r"^(overlay|fullmesh)_(128|64|32)\.txt$", re.IGNORECASE)
 
 NUM = r"[-+]?[\d,]+(?:\.\d+)?"
 
@@ -111,6 +111,46 @@ def extract_gc_rounds(gc_section: str) -> dict:
     return out
 
 
+def extract_data_dissemination(section: str) -> dict:
+    """
+    Pull data-dissemination (or_set adds → N) stats out of a summary
+    section (GC, Normal, or the combined ALL-SERVERS section). All of
+    these sections share the same block format:
+        Servers reaching N adds          : X/Y
+        Avg dissemination round          : NN.NN
+        Fastest                          : NN  (server-name)
+        Slowest                          : NN  (server-name)
+    Returns None values for any field not found (e.g. "no server in
+    this group reached N adds").
+    """
+    out = {
+        "data_diss_reached": None,
+        "data_diss_total": None,
+        "data_diss_avg_round": None,
+        "data_diss_fastest_round": None,
+        "data_diss_slowest_round": None,
+    }
+
+    m = re.search(r"Servers reaching N adds\s*:\s*(\d+)\s*/\s*(\d+)", section)
+    if m:
+        out["data_diss_reached"] = to_num(m.group(1))
+        out["data_diss_total"] = to_num(m.group(2))
+
+    m = re.search(r"Avg dissemination round\s*:\s*(" + NUM + r")", section)
+    if m:
+        out["data_diss_avg_round"] = to_num(m.group(1))
+
+    m = re.search(r"Fastest\s*:\s*(" + NUM + r")\s+\(", section)
+    if m:
+        out["data_diss_fastest_round"] = to_num(m.group(1))
+
+    m = re.search(r"Slowest\s*:\s*(" + NUM + r")\s+\(", section)
+    if m:
+        out["data_diss_slowest_round"] = to_num(m.group(1))
+
+    return out
+
+
 def parse_report(text: str) -> dict:
     """Parse a single report's text and return a flat dict of metrics."""
     row: dict = {}
@@ -129,6 +169,12 @@ def parse_report(text: str) -> dict:
             row["gc_avg_own_recv"] = gc_bytes["avg_msg_recv"]
             row["gc_avg_total_server_own_sent"] = gc_bytes["avg_total_server_sent"]
             row["gc_avg_total_server_own_recv"] = gc_bytes["avg_total_server_recv"]
+        gc_data_diss = extract_data_dissemination(gc_section)
+        row["gc_data_diss_reached"] = gc_data_diss["data_diss_reached"]
+        row["gc_data_diss_total"] = gc_data_diss["data_diss_total"]
+        row["gc_data_diss_avg_round"] = gc_data_diss["data_diss_avg_round"]
+        row["gc_data_diss_fastest_round"] = gc_data_diss["data_diss_fastest_round"]
+        row["gc_data_diss_slowest_round"] = gc_data_diss["data_diss_slowest_round"]
     else:
         for k in (
             "rounds_earliest",
@@ -140,6 +186,11 @@ def parse_report(text: str) -> dict:
             "gc_avg_own_recv",
             "gc_avg_total_server_own_sent",
             "gc_avg_total_server_own_recv",
+            "gc_data_diss_reached",
+            "gc_data_diss_total",
+            "gc_data_diss_avg_round",
+            "gc_data_diss_fastest_round",
+            "gc_data_diss_slowest_round",
         ):
             row[k] = None
 
@@ -168,6 +219,16 @@ def parse_report(text: str) -> dict:
             row["normal_avg_total_server_latest_recv"] = nb_latest[
                 "avg_total_server_recv"
             ]
+        normal_data_diss = extract_data_dissemination(normal_section)
+        row["normal_data_diss_reached"] = normal_data_diss["data_diss_reached"]
+        row["normal_data_diss_total"] = normal_data_diss["data_diss_total"]
+        row["normal_data_diss_avg_round"] = normal_data_diss["data_diss_avg_round"]
+        row["normal_data_diss_fastest_round"] = normal_data_diss[
+            "data_diss_fastest_round"
+        ]
+        row["normal_data_diss_slowest_round"] = normal_data_diss[
+            "data_diss_slowest_round"
+        ]
     for k in (
         "normal_avg_msg_earliest_sent",
         "normal_avg_msg_earliest_recv",
@@ -177,6 +238,29 @@ def parse_report(text: str) -> dict:
         "normal_avg_msg_latest_recv",
         "normal_avg_total_server_latest_sent",
         "normal_avg_total_server_latest_recv",
+        "normal_data_diss_reached",
+        "normal_data_diss_total",
+        "normal_data_diss_avg_round",
+        "normal_data_diss_fastest_round",
+        "normal_data_diss_slowest_round",
+    ):
+        row.setdefault(k, None)
+
+    # ── ALL-SERVERS data dissemination summary section ─────────────────
+    all_diss_section = find_section(text, "SUMMARY – DATA DISSEMINATION (ALL SERVERS)")
+    if all_diss_section:
+        all_data_diss = extract_data_dissemination(all_diss_section)
+        row["all_data_diss_reached"] = all_data_diss["data_diss_reached"]
+        row["all_data_diss_total"] = all_data_diss["data_diss_total"]
+        row["all_data_diss_avg_round"] = all_data_diss["data_diss_avg_round"]
+        row["all_data_diss_fastest_round"] = all_data_diss["data_diss_fastest_round"]
+        row["all_data_diss_slowest_round"] = all_data_diss["data_diss_slowest_round"]
+    for k in (
+        "all_data_diss_reached",
+        "all_data_diss_total",
+        "all_data_diss_avg_round",
+        "all_data_diss_fastest_round",
+        "all_data_diss_slowest_round",
     ):
         row.setdefault(k, None)
 
@@ -256,6 +340,21 @@ FIELDNAMES = [
     "normal_avg_msg_latest_recv",
     "normal_avg_total_server_latest_sent",
     "normal_avg_total_server_latest_recv",
+    "gc_data_diss_reached",
+    "gc_data_diss_total",
+    "gc_data_diss_avg_round",
+    "gc_data_diss_fastest_round",
+    "gc_data_diss_slowest_round",
+    "normal_data_diss_reached",
+    "normal_data_diss_total",
+    "normal_data_diss_avg_round",
+    "normal_data_diss_fastest_round",
+    "normal_data_diss_slowest_round",
+    "all_data_diss_reached",
+    "all_data_diss_total",
+    "all_data_diss_avg_round",
+    "all_data_diss_fastest_round",
+    "all_data_diss_slowest_round",
 ]
 
 
@@ -279,7 +378,7 @@ def build_row(path: Path) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        description="Parse {overlay|fullmesh}_{128|50}.txt reports into a CSV."
+        description="Parse {overlay|fullmesh}_{128|64|32}.txt reports into a CSV."
     )
     ap.add_argument("directory", type=Path, help="Directory to search for reports.")
     ap.add_argument(
@@ -304,7 +403,7 @@ def main() -> None:
     files = find_report_files(args.directory, args.recursive)
     if not files:
         print(
-            f"No files matching '(overlay|fullmesh)_(128|50).txt' found in "
+            f"No files matching '(overlay|fullmesh)_(128|64|32).txt' found in "
             f"'{args.directory}'" + (" (recursive)" if args.recursive else "") + ".",
             file=sys.stderr,
         )

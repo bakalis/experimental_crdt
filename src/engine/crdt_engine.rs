@@ -123,7 +123,7 @@ impl<C: DeltaCrdt> CrdtEngine<C> {
                     }
                 }
                 CrdtEngineRequest::LogCrdtMetrics => {
-                    self.crdt.log_metrics(&self.dvv, self.gc.epoch);
+                    self.crdt.log_metrics(self.dissemination.get_dissemination_round(), &self.dvv, self.gc.epoch);
                 }
             }
         }

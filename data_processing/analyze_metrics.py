@@ -28,6 +28,12 @@ Windowing rules (byte / message totals):
 
 Only send_envelope / receive_envelope events strictly inside the relevant
 open interval (START, END) are counted.
+
+Data dissemination (or_set_metrics):
+  For each server, walk its or_set_metrics events in order and find the
+  first one where `adds` reaches N (N = total server count, GC + Normal).
+  The dissemination_round on that same line is recorded as the number of
+  rounds that server needed to disseminate all adds.
 """
 
 import json
@@ -69,6 +75,12 @@ class ServerStats:
     last_round: int | None = None  # last gc_coordinator_metrics round seen (pre-cutoff)
     lines_processed: int = 0
     done: bool = field(default=False, repr=False)  # internal: stop accepting lines
+
+    # ── data dissemination (or_set_metrics) ─────────────────────────────
+    dissemination_round: int | None = None  # round at which adds first reached N
+    dissemination_adds: int | None = None  # adds value at that round (>= N)
+    dissemination_timestamp: str | None = None  # timestamp of that event
+    dissemination_done: bool = field(default=False, repr=False)  # internal
 
     @property
     def rounds_in_window(self) -> int:
@@ -443,6 +455,70 @@ def analyze_normal(
     return servers
 
 
+# ── phase 4: data dissemination (or_set_metrics) ─────────────────────────────
+
+
+def analyze_dissemination(
+    metrics_path: Path,
+    all_servers: dict[str, ServerStats],
+    global_start_dt: datetime | None,
+    total_servers: int,
+) -> None:
+    """
+    Single pass over or_set_metrics events (all server kinds). For each
+    server, in timestamp/file order, find the first event where `adds`
+    reaches `total_servers` (N = total GC + Normal replica count) and
+    record its dissemination_round, adds value, and timestamp.
+
+    Only events strictly after global_start_dt are considered, consistent
+    with the other windowed metrics in this script.
+    """
+    if total_servers <= 0:
+        return
+
+    with metrics_path.open() as fh:
+        for raw in fh:
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                entry = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+
+            fields = entry.get("fields", {})
+            if fields.get("event") != "or_set_metrics":
+                continue
+
+            node_id = fields.get("node_id", "")
+            stats = all_servers.get(node_id)
+            if stats is None or stats.dissemination_done:
+                continue
+
+            ts_str = entry.get("timestamp", "")
+            if ts_str:
+                try:
+                    entry_dt = parse_ts(ts_str)
+                except ValueError:
+                    entry_dt = None
+                if (
+                    global_start_dt is not None
+                    and entry_dt is not None
+                    and entry_dt <= global_start_dt
+                ):
+                    continue
+
+            adds = fields.get("adds")
+            if adds is None:
+                continue
+
+            if adds >= total_servers:
+                stats.dissemination_round = fields.get("dissemination_round")
+                stats.dissemination_adds = adds
+                stats.dissemination_timestamp = ts_str
+                stats.dissemination_done = True
+
+
 # ── reporting ─────────────────────────────────────────────────────────────────
 
 
@@ -470,6 +546,19 @@ def _print_stats_table(
             f"{avg_total_sent_per_server:>12,.2f} {avg_total_recv_per_server:>12,.2f}"
         )
     print()
+
+
+def _print_dissemination_line(stats: ServerStats, indent: str = "  ") -> None:
+    i = indent
+    if stats.dissemination_round is not None:
+        print(f"{i}Dissemination round (adds → N)  : {stats.dissemination_round}")
+        print(f"{i}Adds at that round               : {stats.dissemination_adds}")
+        if stats.dissemination_timestamp:
+            print(
+                f"{i}Timestamp                        : {stats.dissemination_timestamp}"
+            )
+    else:
+        print(f"{i}Dissemination round (adds → N)  : (never reached N adds)")
 
 
 def print_gc_server_report(stats: ServerStats) -> None:
@@ -518,6 +607,10 @@ def print_gc_server_report(stats: ServerStats) -> None:
         stats.avg_recv,
     )
 
+    print("  Data dissemination (or_set adds → N):")
+    _print_dissemination_line(stats)
+    print()
+
 
 def print_normal_server_report(
     stats: ServerStats,
@@ -541,8 +634,12 @@ def print_normal_server_report(
         print(f"  Earliest GC cutoff             : {earliest_cutoff_dt.isoformat()}")
     if latest_cutoff_dt is not None:
         print(f"  Latest GC cutoff               : {latest_cutoff_dt.isoformat()}")
+
+    print("\n  Data dissemination (or_set adds → N):")
+    _print_dissemination_line(stats)
+
     if earliest_cutoff_dt is None and latest_cutoff_dt is None:
-        print("  (no GC cutoff observed – windows unavailable)")
+        print("\n  (no GC cutoff observed – byte windows unavailable)")
         return
 
     if earliest_cutoff_dt is not None:
@@ -565,6 +662,34 @@ def print_normal_server_report(
             len(stats.recv_bytes_latest),
             stats.avg_sent_latest,
             stats.avg_recv_latest,
+        )
+
+
+def _print_dissemination_summary(group: list[ServerStats], indent: str = "  ") -> None:
+    i = indent
+    reached = [s for s in group if s.dissemination_round is not None]
+    not_reached = [s for s in group if s.dissemination_round is None]
+
+    if not reached:
+        print(f"{i}(no server in this group reached N adds)")
+        return
+
+    rounds = [s.dissemination_round for s in reached]
+    avg_round = sum(rounds) / len(rounds)
+    fastest = min(reached, key=lambda s: s.dissemination_round)
+    slowest = max(reached, key=lambda s: s.dissemination_round)
+
+    print(f"{i}Servers reaching N adds          : {len(reached)}/{len(group)}")
+    print(f"{i}Avg dissemination round          : {avg_round:.2f}")
+    print(
+        f"{i}Fastest                          : {fastest.dissemination_round}  ({fastest.name})"
+    )
+    print(
+        f"{i}Slowest                          : {slowest.dissemination_round}  ({slowest.name})"
+    )
+    if not_reached:
+        print(
+            f"{i}Never reached N adds             : {', '.join(sorted(s.name for s in not_reached))}"
         )
 
 
@@ -663,6 +788,10 @@ def print_gc_summary(title: str, group: list[ServerStats]) -> None:
         num_servers=len(group),
     )
 
+    print("  Data dissemination (or_set adds → N):")
+    _print_dissemination_summary(group)
+    print()
+
 
 def print_normal_summary(
     title: str,
@@ -684,6 +813,9 @@ def print_normal_summary(
         print(f"  Earliest GC cutoff              : {earliest_cutoff_dt.isoformat()}")
     if latest_cutoff_dt is not None:
         print(f"  Latest GC cutoff                : {latest_cutoff_dt.isoformat()}")
+
+    print("\n  Data dissemination (or_set adds → N):")
+    _print_dissemination_summary(group)
 
     if earliest_cutoff_dt is not None:
         all_sent = [b for s in group for b in s.sent_bytes]
@@ -722,7 +854,29 @@ def print_normal_summary(
         )
 
     if earliest_cutoff_dt is None and latest_cutoff_dt is None:
-        print("  (no GC cutoff observed – windows unavailable)\n")
+        print("  (no GC cutoff observed – byte windows unavailable)\n")
+
+
+def print_dissemination_grand_summary(
+    gc_stats: list[ServerStats], normal_stats: list[ServerStats]
+) -> None:
+    """Overall dissemination-round summary across GC + Normal combined."""
+    sep = "═" * 62
+    print(f"\n{sep}")
+    print("  SUMMARY – DATA DISSEMINATION (ALL SERVERS)")
+    print(sep)
+
+    all_stats = gc_stats + normal_stats
+    if not all_stats:
+        print("  (no servers)\n")
+        return
+
+    print(
+        f"  Servers : {len(gc_stats)} GC + {len(normal_stats)} Normal = {len(all_stats)}"
+    )
+    print()
+    _print_dissemination_summary(all_stats)
+    print()
 
 
 def print_grand_total(
@@ -829,6 +983,8 @@ def main() -> None:
         )
         sys.exit(1)
 
+    total_servers = len(gc_ids) + len(normal_ids)
+
     # ── phase 2: GC replicas (own-cutoff window) ──────────────────────────────
     print("Analysing GC replicas …")
     gc_servers = analyze_gc(metrics_path, gc_ids, normal_ids, global_start_dt)
@@ -858,6 +1014,13 @@ def main() -> None:
     normal_stats = sorted(normal_servers.values(), key=lambda s: s.name)
     print()
 
+    # ── phase 4: data dissemination (or_set_metrics, all servers) ───────────
+    print("Analysing data dissemination (or_set_metrics) …")
+    all_servers: dict[str, ServerStats] = {**gc_servers, **normal_servers}
+    analyze_dissemination(metrics_path, all_servers, global_start_dt, total_servers)
+    print(f"  ➜  N (adds target) = total servers = {total_servers}")
+    print()
+
     # ── per-server reports ────────────────────────────────────────────────────
     if gc_stats:
         print("\n" + "━" * 62)
@@ -880,6 +1043,8 @@ def main() -> None:
             earliest_cutoff_dt,
             latest_cutoff_dt,
         )
+
+    print_dissemination_grand_summary(gc_stats, normal_stats)
 
     print_grand_total(gc_stats, normal_stats, earliest_cutoff_dt, latest_cutoff_dt)
 

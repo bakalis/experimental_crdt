@@ -5,17 +5,21 @@ plot_summary.py
 Generates graphs from the aggregated summary CSV (one row per
 topology/size scenario). Every chart directly compares full mesh vs
 overlay (as adjacent bars/lines in the same panel, not separate facets),
-uses SENT bytes only, and switches to a log y-axis automatically when
-values span too wide a range for a bar chart to stay readable.
+uses SENT bytes only. All axes are LINEAR (no log scale) — see the
+"axis scale policy" note below.
 
 Graphs:
   1. rounds_by_size
-     – dissemination rounds earliest/avg/latest,
+     – GC stability dissemination rounds earliest/avg/latest,
        as a connected line/marker plot (not bars), one line per
-       topology, faceted by size (50 / 128).
-  2. total_bytes_sent_earliest_vs_latest
-  3. gc_total_and_avg_bytes_sent_own_stability_point
-  4. avg_message_size_overlay_normal_vs_gc
+       topology, faceted by size (32/ 64 / 128).
+  2. data_dissemination_rounds_by_size
+     – Data dissemination rounds (or_set adds → N) earliest/avg/latest,
+       same line/marker format as (1), so the two "speed of
+       convergence" metrics can be read the same way side by side.
+  3. total_bytes_sent_earliest_vs_latest
+  4. gc_total_and_avg_bytes_sent_own_stability_point
+  5. avg_message_size_overlay_normal_vs_gc
      – overlay only; compares average message size for GC replicas
        vs normal replicas (earliest stability point), across sizes.
 
@@ -24,12 +28,21 @@ Each is written as PNG (matplotlib) + interactive HTML (plotly).
 NOTE: fullmesh scenarios in the source data have no Normal-replica
 columns populated — those bars are simply omitted (not shown as 0).
 
+Axis scale policy:
+    All axes are linear. Every value pair actually produced by this
+    pipeline (round counts, byte totals, per-message averages within
+    one panel) stays within a single order of magnitude, so a log
+    axis would only obscure real differences behind a compressed
+    scale and risk readers misjudging bar-height ratios. Totals and
+    per-message averages are never plotted on the same axis (they
+    live in separate subplots), which is the one comparison in this
+    data that legitimately spans multiple orders of magnitude.
+
 Usage:
     python plot_summary.py <summary.csv> [--out <output_dir>]
 """
 
 import argparse
-import math
 import sys
 from pathlib import Path
 
@@ -68,8 +81,6 @@ TOPOLOGY_HATCHES = {"fullmesh": "///", "overlay": "xxx"}
 TOPOLOGY_LINESTYLES = {"fullmesh": "-", "overlay": "--"}
 TOPOLOGY_MARKERS = {"fullmesh": "o", "overlay": "s"}
 
-LOG_RATIO_THRESHOLD = 15  # switch to log scale if max/min exceeds this ratio
-
 
 def _topologies_present(df: pd.DataFrame) -> list[str]:
     present = set(df["topology"].unique())
@@ -90,39 +101,23 @@ def _save(fig_mpl, fig_plotly, outdir: Path, name: str) -> None:
     print(f"  wrote {png_path.name}, {html_path.name}")
 
 
-def _needs_log(values) -> bool:
-    vals = [
-        v
-        for v in values
-        if v is not None and not (isinstance(v, float) and math.isnan(v)) and v > 0
-    ]
-    if len(vals) < 2:
-        return False
-    return max(vals) / min(vals) > LOG_RATIO_THRESHOLD
-
-
 def _format_axis(ax, ygrid=True):
     if ygrid:
         ax.grid(axis="y", linestyle=":", alpha=0.35)
     ax.set_axisbelow(True)
 
 
-def _grouped_bar_by_topology(
-    ax, categories, topo_series: dict, ylabel: str, log_scale: bool | None = None
-):
+def _grouped_bar_by_topology(ax, categories, topo_series: dict, ylabel: str):
     """
     Grouped bar chart with one group of bars per topology, positioned
-    within each category on the x-axis.
+    within each category on the x-axis. Always linear scale (see
+    "axis scale policy" in the module docstring).
     topo_series = {topology: [values aligned to categories, NaN = omit that bar]}.
     """
     topologies = list(topo_series.keys())
     n = len(topologies)
     width = 0.8 / max(n, 1)
     x = list(range(len(categories)))
-
-    all_vals = [v for series in topo_series.values() for v in series]
-    if log_scale is None:
-        log_scale = _needs_log(all_vals)
 
     drawn_vals = []
 
@@ -131,7 +126,7 @@ def _grouped_bar_by_topology(
         xs = [xi + offset for xi in x]
         vals = topo_series[topo]
         for xi, v in zip(xs, vals):
-            if v is None or (isinstance(v, float) and math.isnan(v)):
+            if v is None or (isinstance(v, float) and pd.isna(v)):
                 continue
 
             drawn_vals.append(v)
@@ -149,26 +144,20 @@ def _grouped_bar_by_topology(
 
     ax.set_xticks(x)
     ax.set_xticklabels(categories)
-    ax.set_ylabel(ylabel + (" (log scale)" if log_scale else ""))
-    if log_scale:
-        ax.set_yscale("log")
+    ax.set_ylabel(ylabel)
 
     # Add top padding so horizontal labels are visible
     if drawn_vals:
         y_max = max(drawn_vals)
-        if log_scale:
-            ax.set_ylim(top=y_max * 1.35)  # multiplicative headroom for log scale
-        else:
-            ax.set_ylim(top=y_max * 1.12)  # additive-like headroom for linear scale
+        ax.set_ylim(top=y_max * 1.12)  # additive-like headroom for linear scale
 
         # Label bars horizontally
-        label_factor = 1.03 if log_scale else 1.01
         for patch in ax.patches:
             h = patch.get_height()
             if h is None or h <= 0:
                 continue
             x_center = patch.get_x() + patch.get_width() / 2
-            y_text = h * label_factor if log_scale else h + (y_max * 0.01)
+            y_text = h + (y_max * 0.01)
             ax.text(
                 x_center,
                 y_text,
@@ -186,11 +175,10 @@ def _grouped_bar_by_topology(
     handles, labels = ax.get_legend_handles_labels()
     seen = dict(zip(labels, handles))
     ax.legend(seen.values(), seen.keys(), fontsize=9, frameon=True)
-    return log_scale
 
 
 def _plotly_grouped_bar_by_topology(
-    fig, row, col, categories, topo_series: dict, log_scale: bool, showlegend: bool
+    fig, row, col, categories, topo_series: dict, showlegend: bool
 ):
     for topo, vals in topo_series.items():
         fig.add_trace(
@@ -208,8 +196,6 @@ def _plotly_grouped_bar_by_topology(
             row=row,
             col=col,
         )
-    if log_scale:
-        fig.update_yaxes(type="log", row=row, col=col)
 
 
 def _facet_by_size(sizes, figsize_per_cell=(6.4, 4.8)):
@@ -225,20 +211,27 @@ def _facet_by_size(sizes, figsize_per_cell=(6.4, 4.8)):
     return fig_mpl, axes[0], fig_plotly
 
 
-# ── 1. dissemination rounds — line/marker plot ────────────────────────────
+def _plot_round_progression(
+    df: pd.DataFrame,
+    outdir: Path,
+    columns: tuple[str, str, str],
+    out_name: str,
+    ylabel: str,
+    title: str,
+) -> None:
+    """
+    Shared implementation for the two "rounds needed" line/marker plots
+    (GC stability convergence and data dissemination convergence). Both
+    use the same visual format: one line per topology (earliest →
+    average → latest), faceted by size. Always linear scale.
+    """
+    col_earliest, col_avg, col_latest = columns
 
-
-def plot_rounds(df: pd.DataFrame, outdir: Path) -> None:
     topologies = _topologies_present(df)
     sizes = _sizes_present(df)
     fig_mpl, axes, fig_plotly = _facet_by_size(sizes)
 
     stages = ["earliest", "average", "latest"]
-
-    all_vals = (
-        df[["rounds_earliest", "rounds_avg", "rounds_latest"]].values.flatten().tolist()
-    )
-    log_scale = _needs_log(all_vals)
 
     for si, n in enumerate(sizes):
         ax = axes[si]
@@ -249,7 +242,9 @@ def plot_rounds(df: pd.DataFrame, outdir: Path) -> None:
             if row.empty:
                 continue
             r = row.iloc[0]
-            values = [r["rounds_earliest"], r["rounds_avg"], r["rounds_latest"]]
+            values = [r[col_earliest], r[col_avg], r[col_latest]]
+            if all(pd.isna(v) for v in values):
+                continue
             subplot_vals.extend([v for v in values if pd.notna(v) and v > 0])
 
             ax.plot(
@@ -266,6 +261,8 @@ def plot_rounds(df: pd.DataFrame, outdir: Path) -> None:
                 markersize=7,
             )
             for x, v in zip(stages, values):
+                if pd.isna(v):
+                    continue
                 ax.annotate(
                     f"{v:.0f}",
                     (x, v),
@@ -298,52 +295,94 @@ def plot_rounds(df: pd.DataFrame, outdir: Path) -> None:
             )
 
         ax.set_title(f"{n} servers")
-        ax.set_ylabel("Dissemination round" + (" (log scale)" if log_scale else ""))
-        if log_scale:
-            ax.set_yscale("log")
+        ax.set_ylabel(ylabel)
 
         # top padding so highest point/annotation doesn't touch border
         if subplot_vals:
             y_max = max(subplot_vals)
-            if log_scale:
-                ax.set_ylim(top=y_max * 1.18)
-            else:
-                ax.set_ylim(top=y_max * 1.08)
+            ax.set_ylim(bottom=0, top=y_max * 1.08)
 
         _format_axis(ax)
         ax.legend(fontsize=9, frameon=True)
 
-    if log_scale:
-        fig_plotly.update_yaxes(type="log")
-        fig_plotly.update_yaxes(range=[None, None])  # keep auto-range
-    else:
-        # add similar top padding in plotly per subplot
-        for si, n in enumerate(sizes):
-            vals = []
-            for topo in topologies:
-                row = df[(df["topology"] == topo) & (df["size"] == n)]
-                if row.empty:
-                    continue
-                r = row.iloc[0]
-                vals.extend([r["rounds_earliest"], r["rounds_avg"], r["rounds_latest"]])
-            vals = [v for v in vals if pd.notna(v)]
-            if vals:
-                fig_plotly.update_yaxes(range=[0, max(vals) * 1.08], row=1, col=si + 1)
+    # matching linear headroom in plotly, per subplot
+    for si, n in enumerate(sizes):
+        vals = []
+        for topo in topologies:
+            row = df[(df["topology"] == topo) & (df["size"] == n)]
+            if row.empty:
+                continue
+            r = row.iloc[0]
+            vals.extend([r[col_earliest], r[col_avg], r[col_latest]])
+        vals = [v for v in vals if pd.notna(v)]
+        if vals:
+            fig_plotly.update_yaxes(range=[0, max(vals) * 1.08], row=1, col=si + 1)
 
-    fig_mpl.suptitle(
-        "Dissemination rounds: earliest → average → latest GC stability point (full mesh vs overlay)",
-        fontsize=13,
-    )
+    fig_mpl.suptitle(title, fontsize=13)
     fig_mpl.tight_layout()
-    fig_plotly.update_layout(
-        title="Dissemination rounds: earliest → average → latest GC stability point",
-        height=480,
+    fig_plotly.update_layout(title=title, height=480)
+
+    _save(fig_mpl, fig_plotly, outdir, out_name)
+
+
+# ── 1. GC stability-convergence rounds — line/marker plot ─────────────────
+
+
+def plot_rounds(df: pd.DataFrame, outdir: Path) -> None:
+    _plot_round_progression(
+        df,
+        outdir,
+        columns=("rounds_earliest", "rounds_avg", "rounds_latest"),
+        out_name="rounds_by_size",
+        ylabel="Rounds to reach GC stability",
+        title=(
+            "GC stability dissemination rounds: earliest → average → latest "
+            "stability point (full mesh vs overlay)"
+        ),
     )
 
-    _save(fig_mpl, fig_plotly, outdir, "rounds_by_size")
+
+# ── 2. data-dissemination-convergence rounds — line/marker plot ───────────
 
 
-# ── 2. total bytes sent: earliest vs latest stability point ───────────────
+def plot_data_dissemination_rounds(df: pd.DataFrame, outdir: Path) -> None:
+    """
+    Same format as plot_rounds() above, but for the *data* dissemination
+    metric (rounds needed for a server's or_set adds count to reach N,
+    i.e. every replica), using the combined ALL-SERVERS columns so GC
+    and Normal replicas are represented together per scenario, exactly
+    as the stability-point chart represents "the system" per scenario.
+    """
+    required = {
+        "all_data_diss_fastest_round",
+        "all_data_diss_avg_round",
+        "all_data_diss_slowest_round",
+    }
+    if not required.issubset(df.columns) or df[list(required)].isna().all().all():
+        print(
+            "  skipping data_dissemination_rounds_by_size "
+            "(no data-dissemination columns found in CSV)"
+        )
+        return
+
+    _plot_round_progression(
+        df,
+        outdir,
+        columns=(
+            "all_data_diss_fastest_round",
+            "all_data_diss_avg_round",
+            "all_data_diss_slowest_round",
+        ),
+        out_name="data_dissemination_rounds_by_size",
+        ylabel="Rounds to reach N adds",
+        title=(
+            "Data dissemination rounds: fastest → average → slowest server to "
+            "reach N adds (full mesh vs overlay)"
+        ),
+    )
+
+
+# ── 3. total bytes sent: earliest vs latest stability point ───────────────
 
 
 def plot_total_bytes_sent(df: pd.DataFrame, outdir: Path) -> None:
@@ -367,9 +406,7 @@ def plot_total_bytes_sent(df: pd.DataFrame, outdir: Path) -> None:
                 r["total_bytes_latest_sent"],
             ]
 
-        log_scale = _grouped_bar_by_topology(
-            ax, categories, topo_series, "Total bytes sent"
-        )
+        _grouped_bar_by_topology(ax, categories, topo_series, "Total bytes sent")
         ax.set_title(f"{n} servers")
         _plotly_grouped_bar_by_topology(
             fig_plotly,
@@ -377,7 +414,6 @@ def plot_total_bytes_sent(df: pd.DataFrame, outdir: Path) -> None:
             si + 1,
             categories,
             topo_series,
-            log_scale,
             showlegend=(si == 0),
         )
 
@@ -395,7 +431,7 @@ def plot_total_bytes_sent(df: pd.DataFrame, outdir: Path) -> None:
     _save(fig_mpl, fig_plotly, outdir, "total_bytes_sent_earliest_vs_latest")
 
 
-# ── 3. GC total & avg bytes sent, own stability point, across scenarios ───
+# ── 4. GC total & avg bytes sent, own stability point, across scenarios ───
 
 
 def plot_gc_own_stability_point_bytes_sent(df: pd.DataFrame, outdir: Path) -> None:
@@ -424,25 +460,21 @@ def plot_gc_own_stability_point_bytes_sent(df: pd.DataFrame, outdir: Path) -> No
         total_series[topo] = totals
         avg_series[topo] = avgs
 
-    log_total = _grouped_bar_by_topology(
-        ax1, categories, total_series, "Total bytes sent"
-    )
+    _grouped_bar_by_topology(ax1, categories, total_series, "Total bytes sent")
     ax1.set_title("GC total bytes sent, start → own stability point")
     ax1.set_xlabel("num servers")
 
-    log_avg = _grouped_bar_by_topology(
-        ax2, categories, avg_series, "Avg bytes / message sent"
-    )
+    _grouped_bar_by_topology(ax2, categories, avg_series, "Avg bytes / message sent")
     ax2.set_title("GC avg bytes/message sent, start → own stability point")
     ax2.set_xlabel("num servers")
 
     fig_mpl.tight_layout()
 
     _plotly_grouped_bar_by_topology(
-        fig_plotly, 1, 1, categories, total_series, log_total, showlegend=True
+        fig_plotly, 1, 1, categories, total_series, showlegend=True
     )
     _plotly_grouped_bar_by_topology(
-        fig_plotly, 1, 2, categories, avg_series, log_avg, showlegend=False
+        fig_plotly, 1, 2, categories, avg_series, showlegend=False
     )
     fig_plotly.update_layout(
         title="GC bytes SENT, start → own stability point",
@@ -455,18 +487,18 @@ def plot_gc_own_stability_point_bytes_sent(df: pd.DataFrame, outdir: Path) -> No
     )
 
 
-# ── 4. overlay-only: average message size normal vs gc replicas ───────────
+# ── 5. overlay-only: average message size normal vs gc replicas ───────────
 
 
 def plot_overlay_avg_message_size_normal_vs_gc(df: pd.DataFrame, outdir: Path) -> None:
     """
     Overlay-only chart:
-      For each overlay size (e.g., 50, 128), compare average message size SENT for:
+      For each overlay size (e.g., 32, 64, 128), compare average message size SENT for:
         - GC replicas
         - Normal replicas (earliest stability point)
 
     Labels are drawn horizontally above bars, with automatic top padding
-    so labels are never clipped.
+    so labels are never clipped. Always linear scale.
     """
     df_overlay = df[df["topology"] == "overlay"].copy()
     if df_overlay.empty:
@@ -488,9 +520,6 @@ def plot_overlay_avg_message_size_normal_vs_gc(df: pd.DataFrame, outdir: Path) -
         r = row.iloc[0]
         gc_vals.append(r["gc_avg_own_sent"])
         normal_earliest_vals.append(r["normal_avg_msg_earliest_sent"])
-
-    all_vals = gc_vals + normal_earliest_vals
-    log_scale = _needs_log(all_vals)
 
     fig_mpl, ax = plt.subplots(figsize=(8.2, 5.2))
     series = {
@@ -535,28 +564,21 @@ def plot_overlay_avg_message_size_normal_vs_gc(df: pd.DataFrame, outdir: Path) -
     ax.set_xticks(x)
     ax.set_xticklabels(categories)
     ax.set_xlabel("num servers")
-    ax.set_ylabel(
-        "Average message size (bytes, sent)" + (" (log scale)" if log_scale else "")
-    )
+    ax.set_ylabel("Average message size (bytes, sent)")
     ax.set_title("Overlay: average message size (Normal vs GC replicas)")
-    if log_scale:
-        ax.set_yscale("log")
     _format_axis(ax)
 
     # Add headroom + horizontal value labels so nothing gets clipped
     if drawn_vals:
         y_max = max(drawn_vals)
-        if log_scale:
-            ax.set_ylim(top=y_max * 1.35)
-        else:
-            ax.set_ylim(top=y_max * 1.12)
+        ax.set_ylim(top=y_max * 1.12)
 
         for patch in ax.patches:
             h = patch.get_height()
             if h is None or h <= 0:
                 continue
             x_center = patch.get_x() + patch.get_width() / 2
-            y_text = h * 1.03 if log_scale else h + (y_max * 0.01)
+            y_text = h + (y_max * 0.01)
             ax.text(
                 x_center,
                 y_text,
@@ -607,8 +629,6 @@ def plot_overlay_avg_message_size_normal_vs_gc(df: pd.DataFrame, outdir: Path) -
         yaxis_title="Average message size (bytes, sent)",
         height=480,
     )
-    if log_scale:
-        fig_plotly.update_yaxes(type="log")
 
     _save(fig_mpl, fig_plotly, outdir, "avg_message_size_overlay_normal_vs_gc")
 
@@ -638,8 +658,11 @@ def main() -> None:
 
     df = pd.read_csv(args.summary_csv)
 
-    print("Generating dissemination-round graph …")
+    print("Generating GC stability dissemination-round graph …")
     plot_rounds(df, outdir)
+
+    print("Generating data dissemination-round graph …")
+    plot_data_dissemination_rounds(df, outdir)
 
     print("Generating bandwidth graphs (sent bytes only) …")
     plot_total_bytes_sent(df, outdir)

@@ -186,7 +186,7 @@ where
         format!("adds: [{adds}] | tombstones: [{tombstones}]")
     }
 
-    fn log_metrics(&self, dvv: &DotVersionVector, epoch: u64) {
+    fn log_metrics(&self, dissemination_round: usize, dvv: &DotVersionVector, epoch: u64) {
         let num_adds = self.adds.len() as u64;
         let num_tombstones = self.tombstones.len() as u64;
         let effective_map = dvv.effective_map().iter().map(|(node, counter)| format!("{}:{}", node, counter))
@@ -194,6 +194,7 @@ where
             .join(", ");
         metric!(event = "or_set_metrics",
             node_id = dvv.dot.node_id.clone(),
+            dissemination_round = dissemination_round,
             adds = num_adds,
             tombstones = num_tombstones,
             vector_clock = effective_map,

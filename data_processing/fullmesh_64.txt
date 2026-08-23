@@ -1,0 +1,1559 @@
+Scanning for latest client_operation …
+  ➜  Global start : 2026-08-23T16:10:44.070205+00:00
+
+Discovering servers …
+  ➜  GC servers     : 64  (gc-server-1, gc-server-10, gc-server-11, gc-server-12, gc-server-13, gc-server-14, gc-server-15, gc-server-16, gc-server-17, gc-server-18, gc-server-19, gc-server-2, gc-server-20, gc-server-21, gc-server-22, gc-server-23, gc-server-24, gc-server-25, gc-server-26, gc-server-27, gc-server-28, gc-server-29, gc-server-3, gc-server-30, gc-server-31, gc-server-32, gc-server-33, gc-server-34, gc-server-35, gc-server-36, gc-server-37, gc-server-38, gc-server-39, gc-server-4, gc-server-40, gc-server-41, gc-server-42, gc-server-43, gc-server-44, gc-server-45, gc-server-46, gc-server-47, gc-server-48, gc-server-49, gc-server-5, gc-server-50, gc-server-51, gc-server-52, gc-server-53, gc-server-54, gc-server-55, gc-server-56, gc-server-57, gc-server-58, gc-server-59, gc-server-6, gc-server-60, gc-server-61, gc-server-62, gc-server-63, gc-server-64, gc-server-7, gc-server-8, gc-server-9)
+  ➜  Normal servers : 0  ()
+
+Analysing GC replicas …
+  ➜  Earliest GC cutoff : 2026-08-23T16:13:21.183735+00:00
+  ➜  Latest GC cutoff   : 2026-08-23T16:20:16.262263+00:00
+
+Analysing Normal replicas …
+
+Analysing data dissemination (or_set_metrics) …
+  ➜  N (adds target) = total servers = 64
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  GC SERVERS – individual results
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-1  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2180
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:09.605674554+00:00
+  Cutoff dissemination_round     : 387
+  Rounds in window               : 387  (first=0, last=387)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         791,203      797,649
+  Message count                           674          664
+  Avg bytes / message                1,173.89     1,201.28
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 67
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:12.383730597+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-10  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2136
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:03.219864884+00:00
+  Cutoff dissemination_round     : 398
+  Rounds in window               : 397  (first=1, last=398)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         790,410      771,551
+  Message count                           673          637
+  Avg bytes / message                1,174.46     1,211.23
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 69
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:15.651643792+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-11  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 3971
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:19:34.892837385+00:00
+  Cutoff dissemination_round     : 743
+  Rounds in window               : 743  (first=0, last=743)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,489,056    1,479,963
+  Message count                         1,240        1,258
+  Avg bytes / message                1,200.85     1,176.44
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 76
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:18.329084002+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-12  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2964
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:16:28.039879132+00:00
+  Cutoff dissemination_round     : 566
+  Rounds in window               : 566  (first=0, last=566)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,109,270    1,104,377
+  Message count                           927          931
+  Avg bytes / message                1,196.62     1,186.23
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 66
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:13.446208666+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-13  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2278
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:40.388558138+00:00
+  Cutoff dissemination_round     : 374
+  Rounds in window               : 374  (first=0, last=374)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         825,552      832,513
+  Message count                           689          703
+  Avg bytes / message                1,198.19     1,184.23
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 44
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:01.200229008+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-14  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2469
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:54.422811547+00:00
+  Cutoff dissemination_round     : 456
+  Rounds in window               : 454  (first=2, last=456)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         911,878      888,944
+  Message count                           768          753
+  Avg bytes / message                1,187.34     1,180.54
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 78
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:15.045446584+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-15  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2749
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:48.130773544+00:00
+  Cutoff dissemination_round     : 494
+  Rounds in window               : 494  (first=0, last=494)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,016,297      993,015
+  Message count                           857          835
+  Avg bytes / message                1,185.88     1,189.24
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 36
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:10:58.110671132+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-16  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2419
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:39.513912762+00:00
+  Cutoff dissemination_round     : 431
+  Rounds in window               : 429  (first=2, last=431)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         871,891      893,874
+  Message count                           742          750
+  Avg bytes / message                1,175.06     1,191.83
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 50
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:02.374465050+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-17  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 3288
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:17:19.379972128+00:00
+  Cutoff dissemination_round     : 607
+  Rounds in window               : 607  (first=0, last=607)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,228,904    1,209,997
+  Message count                         1,026        1,022
+  Avg bytes / message                1,197.76     1,183.95
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 46
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:01.452758092+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-18  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2552
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:06.853941511+00:00
+  Cutoff dissemination_round     : 480
+  Rounds in window               : 480  (first=0, last=480)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         937,568      974,425
+  Message count                           782          819
+  Avg bytes / message                1,198.94     1,189.77
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 72
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:11.922935763+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-19  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2202
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:19.432584211+00:00
+  Cutoff dissemination_round     : 383
+  Rounds in window               : 383  (first=0, last=383)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         798,337      803,942
+  Message count                           675          674
+  Avg bytes / message                1,182.72     1,192.79
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 69
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:10.612524763+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-2  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2905
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:16:19.385675628+00:00
+  Cutoff dissemination_round     : 558
+  Rounds in window               : 558  (first=0, last=558)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,100,352    1,049,468
+  Message count                           929          877
+  Avg bytes / message                1,184.45     1,196.66
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 62
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:11.572752888+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-20  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2564
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:08.651919970+00:00
+  Cutoff dissemination_round     : 456
+  Rounds in window               : 456  (first=0, last=456)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         940,397      940,067
+  Message count                           791          792
+  Avg bytes / message                1,188.87     1,186.95
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 67
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:14.032347250+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-21  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2033
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:51.550468129+00:00
+  Cutoff dissemination_round     : 337
+  Rounds in window               : 337  (first=0, last=337)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         745,242      737,479
+  Message count                           617          626
+  Avg bytes / message                1,207.85     1,178.08
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 39
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:01.133447633+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-22  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 1820
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:27.650933423+00:00
+  Cutoff dissemination_round     : 339
+  Rounds in window               : 339  (first=0, last=339)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         671,240      665,827
+  Message count                           562          561
+  Avg bytes / message                1,194.38     1,186.86
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 74
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:13.261105916+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-23  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2061
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:51.238764503+00:00
+  Cutoff dissemination_round     : 378
+  Rounds in window               : 378  (first=0, last=378)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         745,234      797,357
+  Message count                           619          662
+  Avg bytes / message                1,203.93     1,204.47
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 85
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:16.666803001+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-24  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2736
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:32.212707634+00:00
+  Cutoff dissemination_round     : 475
+  Rounds in window               : 475  (first=0, last=475)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         998,743    1,028,984
+  Message count                           830          864
+  Avg bytes / message                1,203.30     1,190.95
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 76
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:16.947642460+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-25  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2636
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:21.712092087+00:00
+  Cutoff dissemination_round     : 475
+  Rounds in window               : 475  (first=0, last=475)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         983,648      949,095
+  Message count                           828          794
+  Avg bytes / message                1,187.98     1,195.33
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 26
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:10:55.506227089+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-26  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2016
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:49.433498253+00:00
+  Cutoff dissemination_round     : 361
+  Rounds in window               : 359  (first=2, last=361)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         729,368      744,882
+  Message count                           616          628
+  Avg bytes / message                1,184.04     1,186.12
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 83
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:19.819274294+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-27  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2463
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:12.172456847+00:00
+  Cutoff dissemination_round     : 460
+  Rounds in window               : 459  (first=1, last=460)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         914,302      904,057
+  Message count                           772          755
+  Avg bytes / message                1,184.33     1,197.43
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 64
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:11.432828180+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-28  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2742
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:34.091218718+00:00
+  Cutoff dissemination_round     : 494
+  Rounds in window               : 493  (first=1, last=494)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,017,803      995,302
+  Message count                           855          835
+  Avg bytes / message                1,190.41     1,191.98
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 68
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:10.383472971+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-29  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2642
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:35.714520927+00:00
+  Cutoff dissemination_round     : 473
+  Rounds in window               : 472  (first=1, last=473)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         985,166      942,197
+  Message count                           830          784
+  Avg bytes / message                1,186.95     1,201.78
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 65
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:13.878934958+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-3  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 1964
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:37.291799719+00:00
+  Cutoff dissemination_round     : 334
+  Rounds in window               : 334  (first=0, last=334)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         699,168      729,917
+  Message count                           591          614
+  Avg bytes / message                1,183.03     1,188.79
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 80
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:13.717607125+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-30  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2017
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:54.773257963+00:00
+  Cutoff dissemination_round     : 353
+  Rounds in window               : 351  (first=2, last=353)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         730,740      731,962
+  Message count                           623          614
+  Avg bytes / message                1,172.94     1,192.12
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 42
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:10:59.913282174+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-31  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 1934
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:38.280344512+00:00
+  Cutoff dissemination_round     : 348
+  Rounds in window               : 346  (first=2, last=348)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         718,898      700,147
+  Message count                           591          595
+  Avg bytes / message                1,216.41     1,176.72
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 80
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:15.568192709+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-32  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2434
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:40.265361971+00:00
+  Cutoff dissemination_round     : 404
+  Rounds in window               : 402  (first=2, last=404)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         860,774      905,771
+  Message count                           734          755
+  Avg bytes / message                1,172.72     1,199.70
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 75
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:14.335219083+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-33  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 3312
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:17:15.819404584+00:00
+  Cutoff dissemination_round     : 618
+  Rounds in window               : 618  (first=0, last=618)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,224,702    1,251,051
+  Message count                         1,025        1,053
+  Avg bytes / message                1,194.83     1,188.08
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 72
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:13.360679333+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-34  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2527
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:00.816138633+00:00
+  Cutoff dissemination_round     : 458
+  Rounds in window               : 458  (first=0, last=458)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         929,197      931,939
+  Message count                           780          779
+  Avg bytes / message                1,191.28     1,196.33
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 73
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:16.617427376+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-35  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 1750
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:22.138704046+00:00
+  Cutoff dissemination_round     : 316
+  Rounds in window               : 316  (first=0, last=316)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         639,112      643,154
+  Message count                           539          543
+  Avg bytes / message                1,185.74     1,184.45
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 65
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:14.348756333+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-36  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2344
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:36.887032094+00:00
+  Cutoff dissemination_round     : 450
+  Rounds in window               : 449  (first=1, last=450)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         877,889      863,714
+  Message count                           732          723
+  Avg bytes / message                1,199.30     1,194.63
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 72
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:14.368199917+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-37  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 1990
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:51.163624253+00:00
+  Cutoff dissemination_round     : 328
+  Rounds in window               : 326  (first=2, last=328)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         709,370      726,886
+  Message count                           604          611
+  Avg bytes / message                1,174.45     1,189.67
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 45
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:10:59.844400758+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-38  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2335
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:40.307233304+00:00
+  Cutoff dissemination_round     : 405
+  Rounds in window               : 405  (first=0, last=405)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         858,243      857,505
+  Message count                           714          719
+  Avg bytes / message                1,202.02     1,192.64
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 75
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:14.814769417+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-39  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2729
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:40.613002013+00:00
+  Cutoff dissemination_round     : 511
+  Rounds in window               : 510  (first=1, last=511)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,022,874      984,008
+  Message count                           862          821
+  Avg bytes / message                1,186.63     1,198.55
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 64
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:12.505410347+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-4  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2355
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:34.798148468+00:00
+  Cutoff dissemination_round     : 430
+  Rounds in window               : 430  (first=0, last=430)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         859,790      873,111
+  Message count                           723          737
+  Avg bytes / message                1,189.20     1,184.68
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 69
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:11.056760096+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-40  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2237
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:09.339389387+00:00
+  Cutoff dissemination_round     : 394
+  Rounds in window               : 392  (first=2, last=394)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         818,056      816,561
+  Message count                           685          692
+  Avg bytes / message                1,194.24     1,180.00
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 72
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:13.664769541+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-41  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2828
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:50.844803753+00:00
+  Cutoff dissemination_round     : 499
+  Rounds in window               : 499  (first=0, last=499)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,040,447    1,029,611
+  Message count                           875          868
+  Avg bytes / message                1,189.08     1,186.19
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 42
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:10:58.600140382+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-42  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 3261
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:17:04.080585093+00:00
+  Cutoff dissemination_round     : 591
+  Rounds in window               : 591  (first=0, last=591)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,214,590    1,189,809
+  Message count                         1,020        1,003
+  Avg bytes / message                1,190.77     1,186.25
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 62
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:11.959370847+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-43  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 3017
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:16:27.307465506+00:00
+  Cutoff dissemination_round     : 562
+  Rounds in window               : 561  (first=1, last=562)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,120,675    1,121,340
+  Message count                           944          937
+  Avg bytes / message                1,187.16     1,196.73
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 67
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:11.048501138+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-44  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2026
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:55.119113005+00:00
+  Cutoff dissemination_round     : 360
+  Rounds in window               : 360  (first=0, last=360)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         745,423      723,632
+  Message count                           630          604
+  Avg bytes / message                1,183.21     1,198.07
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 70
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:11.718759305+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-45  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2823
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:52.469973004+00:00
+  Cutoff dissemination_round     : 469
+  Rounds in window               : 468  (first=1, last=469)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,032,343    1,046,436
+  Message count                           856          882
+  Avg bytes / message                1,206.01     1,186.44
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 72
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:18.902574919+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-46  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2876
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:16:03.114896884+00:00
+  Cutoff dissemination_round     : 489
+  Rounds in window               : 487  (first=2, last=489)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,042,501    1,072,154
+  Message count                           874          908
+  Avg bytes / message                1,192.79     1,180.79
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 71
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:16.712610793+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-47  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2308
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:32.284510634+00:00
+  Cutoff dissemination_round     : 437
+  Rounds in window               : 437  (first=0, last=437)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         859,725      840,019
+  Message count                           721          706
+  Avg bytes / message                1,192.41     1,189.83
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 69
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:12.736580972+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-48  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 3883
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:19:01.449233675+00:00
+  Cutoff dissemination_round     : 673
+  Rounds in window               : 671  (first=2, last=673)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,414,180    1,480,972
+  Message count                         1,181        1,251
+  Avg bytes / message                1,197.44     1,183.83
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 78
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:16.119583959+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-49  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2328
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:30.589807966+00:00
+  Cutoff dissemination_round     : 425
+  Rounds in window               : 425  (first=0, last=425)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         857,998      856,635
+  Message count                           718          719
+  Avg bytes / message                1,194.98     1,191.43
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 47
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:01.509740883+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-5  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 1966
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:50.280552878+00:00
+  Cutoff dissemination_round     : 348
+  Rounds in window               : 348  (first=0, last=348)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         694,113      754,904
+  Message count                           591          635
+  Avg bytes / message                1,174.47     1,188.83
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 45
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:00.743979050+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-50  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2115
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:59.272985424+00:00
+  Cutoff dissemination_round     : 391
+  Rounds in window               : 389  (first=2, last=391)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         768,012      780,136
+  Message count                           652          655
+  Avg bytes / message                1,177.93     1,191.05
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 83
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:14.288171917+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-51  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2781
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:53.560958296+00:00
+  Cutoff dissemination_round     : 532
+  Rounds in window               : 532  (first=0, last=532)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,033,560    1,012,046
+  Message count                           878          844
+  Avg bytes / message                1,177.18     1,199.11
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 74
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:11.423194013+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-52  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 4169
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:20:16.262263126+00:00
+  Cutoff dissemination_round     : 800
+  Rounds in window               : 800  (first=0, last=800)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,571,541    1,563,684
+  Message count                         1,321        1,317
+  Avg bytes / message                1,189.66     1,187.31
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 67
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:11.627484305+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-53  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 3071
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:16:46.906967085+00:00
+  Cutoff dissemination_round     : 580
+  Rounds in window               : 580  (first=0, last=580)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,168,080    1,101,486
+  Message count                           978          926
+  Avg bytes / message                1,194.36     1,189.51
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 65
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:13.374125125+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-54  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 3172
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:17:00.435521508+00:00
+  Cutoff dissemination_round     : 570
+  Rounds in window               : 569  (first=1, last=570)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,182,281    1,156,251
+  Message count                           989          974
+  Avg bytes / message                1,195.43     1,187.12
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 41
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:00.588557258+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-55  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2442
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:18.920892377+00:00
+  Cutoff dissemination_round     : 420
+  Rounds in window               : 418  (first=2, last=420)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         872,031      905,568
+  Message count                           743          764
+  Avg bytes / message                1,173.66     1,185.30
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 75
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:15.358688667+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-56  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2193
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:18.608608835+00:00
+  Cutoff dissemination_round     : 382
+  Rounds in window               : 382  (first=0, last=382)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         809,569      788,089
+  Message count                           680          660
+  Avg bytes / message                1,190.54     1,194.07
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 64
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:12.224332222+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-57  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2066
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:06.484808302+00:00
+  Cutoff dissemination_round     : 374
+  Rounds in window               : 374  (first=0, last=374)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         747,766      780,755
+  Message count                           628          654
+  Avg bytes / message                1,190.71     1,193.81
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 72
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:13.300883625+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-58  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2648
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:23.072250046+00:00
+  Cutoff dissemination_round     : 465
+  Rounds in window               : 464  (first=1, last=465)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         966,401      983,908
+  Message count                           816          818
+  Avg bytes / message                1,184.31     1,202.82
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 60
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:07.790973053+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-59  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2340
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:42.041327555+00:00
+  Cutoff dissemination_round     : 453
+  Rounds in window               : 453  (first=0, last=453)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         873,204      856,764
+  Message count                           736          720
+  Avg bytes / message                1,186.42     1,189.95
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 44
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:10:59.332258632+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-6  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2124
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:08.377497053+00:00
+  Cutoff dissemination_round     : 380
+  Rounds in window               : 380  (first=0, last=380)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         764,064      802,009
+  Message count                           645          678
+  Avg bytes / message                1,184.60     1,182.90
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 42
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:10:59.609727716+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-60  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 3760
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:19:08.004643095+00:00
+  Cutoff dissemination_round     : 715
+  Rounds in window               : 715  (first=0, last=715)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,417,566    1,401,101
+  Message count                         1,187        1,184
+  Avg bytes / message                1,194.24     1,183.36
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 70
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:14.999206500+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-61  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 1802
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:27.277168840+00:00
+  Cutoff dissemination_round     : 320
+  Rounds in window               : 319  (first=1, last=320)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         657,461      668,230
+  Message count                           553          555
+  Avg bytes / message                1,188.90     1,204.02
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 69
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:13.549486083+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-62  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2099
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:02.057567425+00:00
+  Cutoff dissemination_round     : 379
+  Rounds in window               : 379  (first=0, last=379)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         766,548      768,400
+  Message count                           647          646
+  Avg bytes / message                1,184.77     1,189.47
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 70
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:15.594141167+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-63  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 1759
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:21.183735670+00:00
+  Cutoff dissemination_round     : 322
+  Rounds in window               : 320  (first=2, last=322)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         655,585      613,771
+  Message count                           552          521
+  Avg bytes / message                1,187.65     1,178.06
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 43
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:10:58.168533507+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-64  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2214
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:18.872732919+00:00
+  Cutoff dissemination_round     : 417
+  Rounds in window               : 417  (first=0, last=417)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         816,716      808,924
+  Message count                           691          678
+  Avg bytes / message                1,181.93     1,193.10
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 73
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:16.316547501+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-7  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2832
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:15:54.787928755+00:00
+  Cutoff dissemination_round     : 518
+  Rounds in window               : 517  (first=1, last=518)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                       1,045,842    1,034,528
+  Message count                           880          873
+  Avg bytes / message                1,188.46     1,185.03
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 66
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:14.018961958+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-8  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2004
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:13:45.019633+00:00
+  Cutoff dissemination_round     : 353
+  Rounds in window               : 353  (first=0, last=353)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         726,642      745,292
+  Message count                           610          625
+  Avg bytes / message                1,191.22     1,192.47
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 75
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:15.577765834+00:00
+
+
+──────────────────────────────────────────────────────────────
+  Server : gc-server-9  [GC]
+──────────────────────────────────────────────────────────────
+  Lines processed (in window)    : 2156
+  Window start                   : 2026-08-23T16:10:44.070205+00:00
+  Window end (own cutoff)        : 2026-08-23T16:14:06.420380677+00:00
+  Cutoff dissemination_round     : 386
+  Rounds in window               : 386  (first=0, last=386)
+
+  Bytes (start → own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                         778,882      824,011
+  Message count                           647          697
+  Avg bytes / message                1,203.84     1,182.23
+
+  Data dissemination (or_set adds → N):
+  Dissemination round (adds → N)  : 80
+  Adds at that round               : 64
+  Timestamp                        : 2026-08-23T16:11:18.354988335+00:00
+
+
+══════════════════════════════════════════════════════════════
+  SUMMARY – GC SERVERS
+══════════════════════════════════════════════════════════════
+  Servers : gc-server-1, gc-server-10, gc-server-11, gc-server-12, gc-server-13, gc-server-14, gc-server-15, gc-server-16, gc-server-17, gc-server-18, gc-server-19, gc-server-2, gc-server-20, gc-server-21, gc-server-22, gc-server-23, gc-server-24, gc-server-25, gc-server-26, gc-server-27, gc-server-28, gc-server-29, gc-server-3, gc-server-30, gc-server-31, gc-server-32, gc-server-33, gc-server-34, gc-server-35, gc-server-36, gc-server-37, gc-server-38, gc-server-39, gc-server-4, gc-server-40, gc-server-41, gc-server-42, gc-server-43, gc-server-44, gc-server-45, gc-server-46, gc-server-47, gc-server-48, gc-server-49, gc-server-5, gc-server-50, gc-server-51, gc-server-52, gc-server-53, gc-server-54, gc-server-55, gc-server-56, gc-server-57, gc-server-58, gc-server-59, gc-server-6, gc-server-60, gc-server-61, gc-server-62, gc-server-63, gc-server-64, gc-server-7, gc-server-8, gc-server-9
+
+  Cutoff dissemination round     : avg=454.4
+  Earliest dissemination round   : 316  (gc-server-35)
+  Latest dissemination round     : 800  (gc-server-52)
+  Earliest cutoff                : gc-server-63  @  2026-08-23T16:13:21.183735+00:00
+  Latest cutoff                  : gc-server-52  @  2026-08-23T16:20:16.262263+00:00
+
+  Rounds in window (per server)  : avg=453.8, total=29046
+  First round in window          : 0  (gc-server-1) – 2  (gc-server-14)
+  Last round in window           : 316  (gc-server-35) – 800  (gc-server-52)
+
+  Bytes (start → each server's own cutoff):
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                      59,194,420   59,231,156
+  Message count                        49,748       49,782
+  Avg bytes / message                1,189.89     1,189.81
+  Avg total bytes / server         924,912.81   925,486.81
+
+  Data dissemination (or_set adds → N):
+  Servers reaching N adds          : 64/64
+  Avg dissemination round          : 64.41
+  Fastest                          : 26  (gc-server-25)
+  Slowest                          : 85  (gc-server-23)
+
+
+══════════════════════════════════════════════════════════════
+  SUMMARY – DATA DISSEMINATION (ALL SERVERS)
+══════════════════════════════════════════════════════════════
+  Servers : 64 GC + 0 Normal = 64
+
+  Servers reaching N adds          : 64/64
+  Avg dissemination round          : 64.41
+  Fastest                          : 26  (gc-server-25)
+  Slowest                          : 85  (gc-server-23)
+
+
+══════════════════════════════════════════════════════════════
+  FINAL TOTAL – GC + NORMAL COMBINED
+══════════════════════════════════════════════════════════════
+  Servers : 64 GC + 0 Normal = 64
+  Earliest GC cutoff              : 2026-08-23T16:13:21.183735+00:00
+  Latest GC cutoff                : 2026-08-23T16:20:16.262263+00:00
+
+  Bytes (start → earliest cutoff), GC + Normal:
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                      41,245,803   41,242,406
+  Message count                        34,621       34,621
+  Avg bytes / message                1,191.35     1,191.25
+  Avg total bytes / server         644,465.67   644,412.59
+
+  Bytes (start → latest cutoff), GC + Normal:
+
+  Metric                                 Sent     Received
+  ──────                                 ────     ────────
+  Total bytes                     101,038,240  101,033,664
+  Message count                        85,025       85,024
+  Avg bytes / message                1,188.34     1,188.30
+  Avg total bytes / server       1,578,722.50 1,578,651.00
+
